@@ -1,0 +1,277 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Signals — StockAnalyzer Admin</title>
+    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&family=Fira+Code:wght@400;500;600&display=swap" rel="stylesheet">
+    <style>
+        *, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
+        :root {
+            --bg: #0a0e1a; --green: #00ff88; --blue: #00aaff;
+            --red: #ff4757; --yellow: #ffc400;
+            --muted: rgba(255,255,255,0.4); --border: rgba(255,255,255,0.07);
+            --card: rgba(255,255,255,0.03);
+        }
+        body { font-family: 'Plus Jakarta Sans', sans-serif; background: var(--bg); color: #fff; min-height: 100vh; }
+        .grid-bg {
+            position: fixed; inset: 0;
+            background-image: linear-gradient(rgba(255,255,255,0.015) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,0.015) 1px, transparent 1px);
+            background-size: 60px 60px; pointer-events: none; z-index: 0;
+        }
+        .admin-main { margin-left: 240px; min-height: 100vh; position: relative; z-index: 1; }
+        .topbar {
+            padding: 20px 32px; border-bottom: 1px solid var(--border);
+            display: flex; align-items: center; justify-content: space-between;
+            background: rgba(10,14,26,0.8); backdrop-filter: blur(20px);
+            position: sticky; top: 0; z-index: 50;
+        }
+        .topbar-left h1 { font-size: 20px; font-weight: 700; }
+        .topbar-left p { font-size: 13px; color: var(--muted); margin-top: 2px; }
+        .ist-clock {
+            font-family: 'Fira Code', monospace; font-size: 13px; color: var(--green);
+            background: rgba(0,255,136,0.06); border: 1px solid rgba(0,255,136,0.12);
+            border-radius: 10px; padding: 8px 14px;
+        }
+        .page-content { padding: 28px 32px; }
+
+        /* STAT STRIP */
+        .stat-strip {
+            display: grid; grid-template-columns: repeat(5, 1fr);
+            gap: 14px; margin-bottom: 24px;
+        }
+        .stat-chip {
+            background: var(--card); border: 1px solid var(--border);
+            border-radius: 14px; padding: 16px 18px;
+            display: flex; flex-direction: column; gap: 6px;
+        }
+        .stat-chip-label { font-size: 11px; color: var(--muted); text-transform: uppercase; letter-spacing: 0.08em; }
+        .stat-chip-val { font-size: 24px; font-weight: 700; font-family: 'Fira Code', monospace; }
+        .val-green { color: var(--green); }
+        .val-red   { color: var(--red); }
+        .val-yellow{ color: var(--yellow); }
+        .val-blue  { color: var(--blue); }
+        .val-white { color: #fff; }
+
+        /* PANEL */
+        .panel { background: var(--card); border: 1px solid var(--border); border-radius: 16px; overflow: hidden; }
+        .panel-header {
+            display: flex; align-items: center; justify-content: space-between;
+            padding: 16px 20px; border-bottom: 1px solid var(--border);
+        }
+        .panel-title { font-size: 14px; font-weight: 700; color: #fff; }
+        .panel-count { font-size: 12px; color: var(--muted); font-family: 'Fira Code', monospace; }
+
+        /* TABLE */
+        .data-table { width: 100%; border-collapse: collapse; }
+        .data-table th {
+            font-size: 11px; font-weight: 600; color: var(--muted);
+            text-transform: uppercase; letter-spacing: 0.08em;
+            padding: 10px 20px; text-align: left;
+            border-bottom: 1px solid var(--border); background: rgba(255,255,255,0.02);
+        }
+        .data-table td {
+            padding: 13px 20px; font-size: 13px; color: rgba(255,255,255,0.7);
+            border-bottom: 1px solid rgba(255,255,255,0.04); vertical-align: middle;
+        }
+        .data-table tr:last-child td { border-bottom: none; }
+        .data-table tr:hover td { background: rgba(255,255,255,0.02); }
+
+        .user-cell { display: flex; align-items: center; gap: 10px; }
+        .user-avatar {
+            width: 32px; height: 32px; border-radius: 50%;
+            background: linear-gradient(135deg, var(--green), var(--blue));
+            display: flex; align-items: center; justify-content: center;
+            font-size: 11px; font-weight: 700; color: #0a0e1a;
+            font-family: 'Fira Code', monospace; flex-shrink: 0;
+        }
+        .user-name { font-weight: 600; color: #fff; font-size: 13px; }
+        .user-type { font-size: 11px; color: var(--muted); }
+
+        .signal-pill {
+            display: inline-block; padding: 3px 10px; border-radius: 6px;
+            font-size: 11px; font-weight: 700; letter-spacing: 0.04em;
+        }
+        .pill-buy        { background: rgba(0,255,136,0.12); color: var(--green); }
+        .pill-sell       { background: rgba(255,71,87,0.12); color: var(--red); }
+        .pill-wait       { background: rgba(255,196,0,0.12); color: var(--yellow); }
+        .pill-strongbuy  { background: rgba(0,255,136,0.2); color: var(--green); border: 1px solid rgba(0,255,136,0.3); }
+        .pill-strongsell { background: rgba(255,71,87,0.2); color: var(--red); border: 1px solid rgba(255,71,87,0.3); }
+
+        .risk-pill { display: inline-block; padding: 2px 8px; border-radius: 5px; font-size: 11px; font-weight: 600; }
+        .risk-low    { background: rgba(0,255,136,0.1); color: var(--green); }
+        .risk-medium { background: rgba(255,196,0,0.1); color: var(--yellow); }
+        .risk-high   { background: rgba(255,71,87,0.1); color: var(--red); }
+
+        .trade-pill {
+            display: inline-block; padding: 2px 8px; border-radius: 5px;
+            font-size: 11px; font-weight: 600;
+        }
+        .trade-intraday { background: rgba(255,71,87,0.1);  color: var(--red); }
+        .trade-swing    { background: rgba(0,170,255,0.1);  color: var(--blue); }
+        .trade-longterm { background: rgba(0,255,136,0.1);  color: var(--green); }
+
+        .mono { font-family: 'Fira Code', monospace; font-size: 12px; }
+
+        .price-cell { display: flex; flex-direction: column; gap: 2px; }
+        .price-entry { font-family: 'Fira Code', monospace; font-size: 12px; color: #fff; font-weight: 600; }
+        .price-sl    { font-family: 'Fira Code', monospace; font-size: 11px; color: var(--red); }
+        .price-t1    { font-family: 'Fira Code', monospace; font-size: 11px; color: var(--green); }
+
+        .empty-state { text-align: center; padding: 60px 20px; color: var(--muted); font-size: 14px; }
+        .empty-icon { font-size: 40px; margin-bottom: 12px; }
+
+        @media (max-width: 1200px) { .stat-strip { grid-template-columns: repeat(3,1fr); } }
+        @media (max-width: 900px) {
+            .admin-main { margin-left: 0; }
+            .page-content { padding: 20px 16px; }
+            .stat-strip { grid-template-columns: repeat(2,1fr); }
+        }
+    </style>
+</head>
+<body>
+<div class="grid-bg"></div>
+{% include 'stocks/admin_sidebar.html' %}
+
+<div class="admin-main">
+    <div class="topbar">
+        <div class="topbar-left">
+            <h1>⚡ Signals</h1>
+            <p>All signals generated by all users</p>
+        </div>
+        <div class="ist-clock" id="topClock">--:-- --</div>
+    </div>
+
+    <div class="page-content">
+
+        <!-- STAT STRIP -->
+        <div class="stat-strip">
+            <div class="stat-chip">
+                <div class="stat-chip-label">Total Signals</div>
+                <div class="stat-chip-val val-white">{{ signals|length }}</div>
+            </div>
+            <div class="stat-chip">
+                <div class="stat-chip-label">Buy Signals</div>
+                <div class="stat-chip-val val-green">
+                    {{ signals|dictsortreversed:"signal"|length }}
+                </div>
+            </div>
+            <div class="stat-chip">
+                <div class="stat-chip-label">Strong Buy</div>
+                <div class="stat-chip-val val-green">
+                    {% with count=0 %}
+                    {% for s in signals %}{% if s.signal == 'STRONG BUY' %}{% with count=count|add:1 %}{% endwith %}{% endif %}{% endfor %}
+                    {% endwith %}
+                    {{ signals|length }}
+                </div>
+            </div>
+            <div class="stat-chip">
+                <div class="stat-chip-label">High Risk</div>
+                <div class="stat-chip-val val-red">—</div>
+            </div>
+            <div class="stat-chip">
+                <div class="stat-chip-label">Last Signal</div>
+                <div class="stat-chip-val val-blue" style="font-size:14px;">
+                    {% if signals %}{{ signals.0.created_at|date:"d M, H:i" }}{% else %}—{% endif %}
+                </div>
+            </div>
+        </div>
+
+        <!-- SIGNALS TABLE -->
+        <div class="panel">
+            <div class="panel-header">
+                <div class="panel-title">⚡ All Signals</div>
+                <div class="panel-count">{{ signals|length }} total</div>
+            </div>
+
+            {% if signals %}
+            <table class="data-table">
+                <thead>
+                    <tr>
+                        <th>User</th>
+                        <th>Symbol</th>
+                        <th>Signal</th>
+                        <th>Trade Type</th>
+                        <th>Risk</th>
+                        <th>Prices</th>
+                        <th>Target 1</th>
+                        <th>Target 2</th>
+                        <th>Time</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for sig in signals %}
+                    <tr>
+                        <td>
+                            <div class="user-cell">
+                                <div class="user-avatar">
+                                    {{ sig.user.first_name|first|upper }}{{ sig.user.last_name|first|upper }}
+                                </div>
+                                <div>
+                                    <div class="user-name">{{ sig.user.username }}</div>
+                                    <div class="user-type">{{ sig.trade_type|capfirst }}</div>
+                                </div>
+                            </div>
+                        </td>
+                        <td>
+                            <span class="mono" style="color:#fff;font-weight:700;font-size:13px;">{{ sig.symbol }}</span>
+                        </td>
+                        <td>
+                            {% if sig.signal == 'STRONG BUY' %}<span class="signal-pill pill-strongbuy">{{ sig.signal }}</span>
+                            {% elif sig.signal == 'BUY' %}<span class="signal-pill pill-buy">{{ sig.signal }}</span>
+                            {% elif sig.signal == 'STRONG SELL' %}<span class="signal-pill pill-strongsell">{{ sig.signal }}</span>
+                            {% elif sig.signal == 'SELL' %}<span class="signal-pill pill-sell">{{ sig.signal }}</span>
+                            {% else %}<span class="signal-pill pill-wait">{{ sig.signal }}</span>{% endif %}
+                        </td>
+                        <td>
+                            {% if sig.trade_type == 'intraday' %}<span class="trade-pill trade-intraday">Intraday</span>
+                            {% elif sig.trade_type == 'swing' %}<span class="trade-pill trade-swing">Swing</span>
+                            {% else %}<span class="trade-pill trade-longterm">Long Term</span>{% endif %}
+                        </td>
+                        <td>
+                            {% if sig.risk_level == 'LOW' %}<span class="risk-pill risk-low">LOW</span>
+                            {% elif sig.risk_level == 'HIGH' %}<span class="risk-pill risk-high">HIGH</span>
+                            {% else %}<span class="risk-pill risk-medium">MED</span>{% endif %}
+                        </td>
+                        <td>
+                            <div class="price-cell">
+                                <span class="price-entry">₹{{ sig.entry_price }}</span>
+                                <span class="price-sl">SL: ₹{{ sig.stop_loss }}</span>
+                            </div>
+                        </td>
+                        <td><span class="price-t1">₹{{ sig.target1 }}</span></td>
+                        <td><span class="price-t1">₹{{ sig.target2 }}</span></td>
+                        <td class="mono" style="color:var(--muted);font-size:11px;">
+                            {{ sig.created_at|date:"d M Y" }}<br>
+                            <span style="color:rgba(255,255,255,0.2);">{{ sig.created_at|date:"H:i" }}</span>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+            {% else %}
+            <div class="empty-state">
+                <div class="empty-icon">⚡</div>
+                No signals generated yet.<br>
+                <span style="font-size:13px;margin-top:6px;display:block;">Users need to analyze stocks first.</span>
+            </div>
+            {% endif %}
+        </div>
+
+    </div>
+</div>
+
+<script>
+function updateClock() {
+    const now = new Date();
+    const ist = new Date(now.toLocaleString('en-US', { timeZone: 'Asia/Kolkata' }));
+    const h = ist.getHours(), m = String(ist.getMinutes()).padStart(2,'0'), s = String(ist.getSeconds()).padStart(2,'0');
+    const ampm = h >= 12 ? 'PM' : 'AM', h12 = h % 12 || 12;
+    const el = document.getElementById('topClock');
+    if (el) el.textContent = `${h12}:${m}:${s} ${ampm} IST`;
+}
+updateClock();
+setInterval(updateClock, 1000);
+</script>
+</body>
+</html>

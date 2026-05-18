@@ -1,0 +1,1490 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>StockAnalyzer — NSE Trading Signals</title>
+    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&family=Fira+Code:wght@400;500;600&display=swap" rel="stylesheet">
+    <style>
+        *, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
+
+        :root {
+            --bg: #0a0e1a;
+            --bg2: #0d1224;
+            --green: #00ff88;
+            --blue: #00aaff;
+            --red: #ff4757;
+            --text: #ffffff;
+            --muted: rgba(255,255,255,0.4);
+            --border: rgba(255,255,255,0.07);
+            --card: rgba(255,255,255,0.03);
+        }
+
+        html { scroll-behavior: smooth; }
+
+        body {
+            font-family: 'Plus Jakarta Sans', sans-serif;
+            background: var(--bg);
+            color: var(--text);
+            overflow-x: hidden;
+        }
+
+        /* ── GRID BACKGROUND ── */
+        .grid-bg {
+            position: fixed;
+            inset: 0;
+            background-image:
+                linear-gradient(rgba(255,255,255,0.018) 1px, transparent 1px),
+                linear-gradient(90deg, rgba(255,255,255,0.018) 1px, transparent 1px);
+            background-size: 60px 60px;
+            pointer-events: none;
+            z-index: 0;
+        }
+
+        /* ── NAVBAR ── */
+        nav {
+            position: fixed;
+            top: 0; left: 0; right: 0;
+            z-index: 100;
+            padding: 18px 60px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            background: rgba(10,14,26,0.85);
+            backdrop-filter: blur(20px);
+            border-bottom: 1px solid var(--border);
+        }
+
+        .nav-logo {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            text-decoration: none;
+        }
+
+        .nav-logo-icon {
+            width: 40px; height: 40px;
+            background: linear-gradient(135deg, var(--green), var(--blue));
+            border-radius: 10px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 20px;
+        }
+
+        .nav-logo-text { font-size: 18px; font-weight: 700; color: #fff; }
+        .nav-logo-text span { color: var(--green); }
+
+        .nav-links {
+            display: flex;
+            align-items: center;
+            gap: 36px;
+            list-style: none;
+        }
+
+        .nav-links a {
+            color: var(--muted);
+            text-decoration: none;
+            font-size: 14px;
+            font-weight: 500;
+            transition: color 0.2s;
+        }
+
+        .nav-links a:hover { color: #fff; }
+
+        .nav-btns { display: flex; align-items: center; gap: 12px; }
+
+        .btn-ghost {
+            padding: 9px 20px;
+            background: transparent;
+            border: 1px solid var(--border);
+            border-radius: 10px;
+            color: var(--muted);
+            font-size: 14px;
+            font-weight: 600;
+            font-family: 'Plus Jakarta Sans', sans-serif;
+            cursor: pointer;
+            text-decoration: none;
+            transition: all 0.2s;
+        }
+
+        .btn-ghost:hover { border-color: rgba(255,255,255,0.2); color: #fff; }
+
+        .btn-primary {
+            padding: 9px 20px;
+            background: linear-gradient(135deg, var(--green), var(--blue));
+            border: none;
+            border-radius: 10px;
+            color: #0a0e1a;
+            font-size: 14px;
+            font-weight: 700;
+            font-family: 'Plus Jakarta Sans', sans-serif;
+            cursor: pointer;
+            text-decoration: none;
+            transition: all 0.2s;
+        }
+
+        .btn-primary:hover {
+            transform: translateY(-1px);
+            box-shadow: 0 6px 24px rgba(0,255,136,0.25);
+        }
+
+        /* ── TICKER BAR ── */
+        .ticker-bar {
+            position: fixed;
+            top: 73px; left: 0; right: 0;
+            z-index: 99;
+            background: rgba(10,14,26,0.9);
+            border-bottom: 1px solid var(--border);
+            padding: 9px 0;
+            overflow: hidden;
+        }
+
+        .ticker-track {
+            display: flex;
+            gap: 0;
+            animation: ticker 40s linear infinite;
+            width: max-content;
+        }
+
+        .ticker-track:hover { animation-play-state: paused; }
+
+        @keyframes ticker {
+            from { transform: translateX(0); }
+            to   { transform: translateX(-50%); }
+        }
+
+        .tick {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            padding: 0 32px;
+            border-right: 1px solid var(--border);
+            font-size: 12px;
+            font-weight: 500;
+            white-space: nowrap;
+            color: rgba(255,255,255,0.55);
+        }
+
+        .tick-icon { font-size: 14px; }
+        .tick-label { color: var(--green); font-weight: 700; font-size: 11px; letter-spacing: 0.08em; text-transform: uppercase; }
+
+        /* ── HERO ── */
+        .hero {
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 160px 60px 80px;
+            position: relative;
+            z-index: 1;
+        }
+
+        .hero-glow-left {
+            position: absolute;
+            width: 600px; height: 600px;
+            background: radial-gradient(circle, rgba(0,255,136,0.06) 0%, transparent 70%);
+            top: 50%; left: -100px;
+            transform: translateY(-50%);
+            pointer-events: none;
+        }
+
+        .hero-glow-right {
+            position: absolute;
+            width: 600px; height: 600px;
+            background: radial-gradient(circle, rgba(0,170,255,0.05) 0%, transparent 70%);
+            top: 50%; right: -100px;
+            transform: translateY(-50%);
+            pointer-events: none;
+        }
+
+        /* ── HERO SPLIT LAYOUT ── */
+        .hero-split {
+            display: grid;
+            grid-template-columns: 1fr 400px;
+            gap: 56px;
+            align-items: center;
+            max-width: 1200px;
+            width: 100%;
+            position: relative;
+        }
+
+        .hero-inner {
+            text-align: left;
+            position: relative;
+        }
+
+        .hero-badge {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            background: rgba(0,255,136,0.08);
+            border: 1px solid rgba(0,255,136,0.2);
+            border-radius: 100px;
+            padding: 6px 16px;
+            font-size: 12px;
+            font-weight: 600;
+            color: var(--green);
+            margin-bottom: 28px;
+            animation: fadeUp 0.6s ease both;
+        }
+
+        .badge-dot {
+            width: 6px; height: 6px;
+            background: var(--green);
+            border-radius: 50%;
+            animation: pulse 2s infinite;
+        }
+
+        @keyframes pulse {
+            0%, 100% { opacity: 1; transform: scale(1); }
+            50%       { opacity: 0.5; transform: scale(0.8); }
+        }
+
+        .hero h1 {
+            font-size: clamp(36px, 5vw, 68px);
+            font-weight: 700;
+            line-height: 1.08;
+            letter-spacing: -0.03em;
+            margin-bottom: 24px;
+            animation: fadeUp 0.6s ease 0.1s both;
+        }
+
+        .hero h1 .accent {
+            background: linear-gradient(135deg, var(--green), var(--blue));
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+
+        .hero-sub {
+            font-size: 16px;
+            color: var(--muted);
+            line-height: 1.7;
+            max-width: 520px;
+            margin: 0 0 40px;
+            font-weight: 400;
+            animation: fadeUp 0.6s ease 0.2s both;
+        }
+
+        .hero-btns {
+            display: flex;
+            align-items: center;
+            gap: 14px;
+            flex-wrap: wrap;
+            animation: fadeUp 0.6s ease 0.3s both;
+        }
+
+        .btn-hero-primary {
+            padding: 15px 36px;
+            background: linear-gradient(135deg, var(--green), var(--blue));
+            border: none;
+            border-radius: 14px;
+            color: #0a0e1a;
+            font-size: 16px;
+            font-weight: 700;
+            font-family: 'Plus Jakarta Sans', sans-serif;
+            cursor: pointer;
+            text-decoration: none;
+            transition: all 0.2s;
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .btn-hero-primary:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 12px 40px rgba(0,255,136,0.3);
+        }
+
+        .btn-hero-ghost {
+            padding: 15px 36px;
+            background: transparent;
+            border: 1px solid rgba(255,255,255,0.15);
+            border-radius: 14px;
+            color: #fff;
+            font-size: 16px;
+            font-weight: 600;
+            font-family: 'Plus Jakarta Sans', sans-serif;
+            cursor: pointer;
+            text-decoration: none;
+            transition: all 0.2s;
+        }
+
+        .btn-hero-ghost:hover {
+            border-color: rgba(255,255,255,0.3);
+            background: rgba(255,255,255,0.04);
+        }
+
+        /* Live signal card preview */
+        .hero-preview {
+            margin-top: 48px;
+            animation: fadeUp 0.6s ease 0.4s both;
+        }
+
+        .preview-label {
+            font-size: 12px;
+            color: var(--muted);
+            margin-bottom: 16px;
+            letter-spacing: 0.1em;
+            text-transform: uppercase;
+        }
+
+        .preview-cards {
+            display: flex;
+            gap: 12px;
+            flex-wrap: wrap;
+        }
+
+        .preview-card {
+            background: var(--card);
+            border: 1px solid var(--border);
+            border-radius: 16px;
+            padding: 16px 20px;
+            min-width: 140px;
+            text-align: left;
+            backdrop-filter: blur(10px);
+            transition: all 0.3s;
+        }
+
+        .preview-card:hover {
+            border-color: rgba(0,255,136,0.2);
+            transform: translateY(-4px);
+        }
+
+        .preview-card .sym {
+            font-size: 12px;
+            font-weight: 700;
+            color: var(--muted);
+            margin-bottom: 6px;
+            font-family: 'Fira Code', monospace;
+        }
+
+        .preview-card .price {
+            font-size: 17px;
+            font-weight: 700;
+            margin-bottom: 8px;
+            font-family: 'Fira Code', monospace;
+        }
+
+        .signal-tag {
+            display: inline-block;
+            padding: 3px 10px;
+            border-radius: 6px;
+            font-size: 11px;
+            font-weight: 700;
+            letter-spacing: 0.05em;
+        }
+
+        .signal-buy  { background: rgba(0,255,136,0.15); color: var(--green); }
+        .signal-sell { background: rgba(255,71,87,0.15);  color: var(--red);   }
+        .signal-wait { background: rgba(255,196,0,0.15);  color: #ffc400;      }
+
+        .index-card, .info-card { min-width: 150px; }
+
+        .index-meta {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            margin: 4px 0;
+            font-family: 'Fira Code', monospace;
+            font-size: 12px;
+        }
+
+        .idx-change { font-weight: 600; }
+        .idx-pct    { font-size: 11px; opacity: 0.8; }
+
+        .index-sub {
+            font-size: 11px;
+            color: var(--muted);
+            margin-top: 4px;
+            letter-spacing: 0.03em;
+        }
+
+        .loading-dot {
+            display: inline-block;
+            width: 8px; height: 8px;
+            background: var(--green);
+            border-radius: 50%;
+            animation: blink 1.2s ease-in-out infinite;
+        }
+
+        @keyframes blink {
+            0%, 100% { opacity: 1; }
+            50%       { opacity: 0.2; }
+        }
+
+        .up   { color: var(--green); }
+        .down { color: var(--red);   }
+
+        @keyframes fadeUp {
+            from { opacity: 0; transform: translateY(24px); }
+            to   { opacity: 1; transform: translateY(0);    }
+        }
+
+        /* ── NEWS PANEL ── */
+        .hero-news-panel {
+            background: rgba(255,255,255,0.025);
+            border: 1px solid rgba(255,255,255,0.08);
+            border-radius: 24px;
+            padding: 20px;
+            backdrop-filter: blur(20px);
+            height: 520px;
+            display: flex;
+            flex-direction: column;
+            animation: fadeUp 0.6s ease 0.5s both;
+            box-shadow: 0 0 0 1px rgba(0,255,136,0.04), 0 32px 64px rgba(0,0,0,0.4);
+        }
+
+        .news-panel-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding-bottom: 14px;
+            border-bottom: 1px solid var(--border);
+            margin-bottom: 2px;
+            flex-shrink: 0;
+        }
+
+        .news-panel-title {
+            font-size: 13px;
+            font-weight: 700;
+            color: rgba(255,255,255,0.85);
+            letter-spacing: 0.04em;
+        }
+
+        .news-live-badge {
+            display: flex;
+            align-items: center;
+            gap: 5px;
+            font-size: 10px;
+            font-weight: 700;
+            color: var(--green);
+            background: rgba(0,255,136,0.08);
+            border: 1px solid rgba(0,255,136,0.15);
+            border-radius: 20px;
+            padding: 3px 10px;
+            letter-spacing: 0.06em;
+        }
+
+        .news-live-dot {
+            width: 5px; height: 5px;
+            background: var(--green);
+            border-radius: 50%;
+            animation: pulse 2s infinite;
+        }
+
+        .news-feed {
+            overflow-y: auto;
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            padding-right: 4px;
+            scrollbar-width: thin;
+            scrollbar-color: rgba(255,255,255,0.08) transparent;
+        }
+
+        .news-feed::-webkit-scrollbar { width: 4px; }
+        .news-feed::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.08); border-radius: 4px; }
+        .news-feed::-webkit-scrollbar-track { background: transparent; }
+
+        /* Skeleton loaders */
+        .news-skeleton {
+            height: 60px;
+            background: linear-gradient(90deg,
+                rgba(255,255,255,0.03) 25%,
+                rgba(255,255,255,0.06) 50%,
+                rgba(255,255,255,0.03) 75%
+            );
+            background-size: 200% 100%;
+            animation: shimmer 1.5s infinite;
+            border-radius: 10px;
+            margin: 5px 0;
+            flex-shrink: 0;
+        }
+
+        @keyframes shimmer {
+            0%   { background-position: 200% 0; }
+            100% { background-position: -200% 0; }
+        }
+
+        /* News item */
+        .news-item {
+            display: block;
+            padding: 12px 6px;
+            border-bottom: 1px solid rgba(255,255,255,0.05);
+            text-decoration: none;
+            transition: background 0.15s;
+            border-radius: 8px;
+            cursor: pointer;
+            flex-shrink: 0;
+        }
+
+        .news-item:last-child { border-bottom: none; }
+
+        .news-item:hover { background: rgba(0,255,136,0.04); }
+
+        .news-item-meta {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            margin-bottom: 5px;
+        }
+
+        .news-source {
+            font-size: 10px;
+            font-weight: 700;
+            color: var(--green);
+            text-transform: uppercase;
+            letter-spacing: 0.07em;
+        }
+
+        .news-dot {
+            width: 3px; height: 3px;
+            background: var(--muted);
+            border-radius: 50%;
+        }
+
+        .news-time {
+            font-size: 10px;
+            color: var(--muted);
+            font-family: 'Fira Code', monospace;
+        }
+
+        .news-item-title {
+            font-size: 12.5px;
+            font-weight: 500;
+            color: rgba(255,255,255,0.78);
+            line-height: 1.45;
+            display: -webkit-box;
+            -webkit-line-clamp: 2;
+            -webkit-box-orient: vertical;
+            overflow: hidden;
+        }
+
+        .news-item:hover .news-item-title { color: rgba(255,255,255,0.95); }
+
+        .news-error {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            flex: 1;
+            gap: 8px;
+            color: var(--muted);
+            font-size: 13px;
+            text-align: center;
+            padding: 20px;
+        }
+
+        .news-error-icon { font-size: 28px; opacity: 0.5; }
+
+        .news-footer {
+            padding-top: 12px;
+            border-top: 1px solid var(--border);
+            margin-top: 4px;
+            flex-shrink: 0;
+            text-align: center;
+        }
+
+        .news-footer span {
+            font-size: 10px;
+            color: var(--muted);
+            letter-spacing: 0.05em;
+        }
+
+        /* ── STATS BAR ── */
+        .stats-bar {
+            position: relative;
+            z-index: 1;
+            border-top: 1px solid var(--border);
+            border-bottom: 1px solid var(--border);
+            padding: 32px 60px;
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 0;
+        }
+
+        .stat-item {
+            text-align: center;
+            padding: 0 20px;
+            border-right: 1px solid var(--border);
+        }
+
+        .stat-item:last-child { border-right: none; }
+
+        .stat-num {
+            font-size: 32px;
+            font-weight: 700;
+            font-family: 'Fira Code', monospace;
+            background: linear-gradient(135deg, var(--green), var(--blue));
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+
+        .stat-label { font-size: 13px; color: var(--muted); margin-top: 4px; }
+
+        /* ── SECTION GENERIC ── */
+        section {
+            position: relative;
+            z-index: 1;
+            padding: 100px 60px;
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+
+        .section-label {
+            font-size: 12px;
+            font-weight: 600;
+            color: var(--green);
+            letter-spacing: 0.15em;
+            text-transform: uppercase;
+            margin-bottom: 14px;
+        }
+
+        .section-title {
+            font-size: clamp(28px, 4vw, 44px);
+            font-weight: 700;
+            letter-spacing: -0.02em;
+            line-height: 1.15;
+            margin-bottom: 16px;
+        }
+
+        .section-sub {
+            font-size: 16px;
+            color: var(--muted);
+            line-height: 1.7;
+            max-width: 560px;
+            margin-bottom: 60px;
+        }
+
+        /* ── FEATURES ── */
+        #features { border-top: 1px solid var(--border); }
+
+        .features-grid {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 20px;
+        }
+
+        .feature-card {
+            background: var(--card);
+            border: 1px solid var(--border);
+            border-radius: 20px;
+            padding: 32px 28px;
+            transition: all 0.3s;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .feature-card::before {
+            content: '';
+            position: absolute;
+            top: 0; left: 0; right: 0;
+            height: 2px;
+            background: linear-gradient(90deg, var(--green), var(--blue));
+            opacity: 0;
+            transition: opacity 0.3s;
+        }
+
+        .feature-card:hover { border-color: rgba(0,255,136,0.15); transform: translateY(-4px); }
+        .feature-card:hover::before { opacity: 1; }
+
+        .feature-icon {
+            width: 48px; height: 48px;
+            border-radius: 14px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 22px;
+            margin-bottom: 20px;
+            background: rgba(0,255,136,0.08);
+            border: 1px solid rgba(0,255,136,0.12);
+        }
+
+        .feature-title { font-size: 17px; font-weight: 700; margin-bottom: 10px; }
+        .feature-desc  { font-size: 14px; color: var(--muted); line-height: 1.65; }
+
+        /* ── HOW IT WORKS ── */
+        #how {
+            background: linear-gradient(180deg, transparent, rgba(0,255,136,0.02) 50%, transparent);
+            border-top: 1px solid var(--border);
+            max-width: 100%;
+            padding: 100px 60px;
+        }
+
+        #how .inner { max-width: 1200px; margin: 0 auto; }
+
+        .steps {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 0;
+            position: relative;
+        }
+
+        .steps::before {
+            content: '';
+            position: absolute;
+            top: 32px; left: 10%; right: 10%;
+            height: 1px;
+            background: linear-gradient(90deg, transparent, var(--green), var(--blue), transparent);
+            opacity: 0.3;
+        }
+
+        .step { text-align: center; padding: 0 20px; }
+
+        .step-num {
+            width: 64px; height: 64px;
+            border-radius: 50%;
+            background: var(--bg2);
+            border: 2px solid var(--border);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 20px;
+            font-weight: 700;
+            font-family: 'Fira Code', monospace;
+            color: var(--green);
+            margin: 0 auto 24px;
+            position: relative;
+            z-index: 1;
+        }
+
+        .step-title { font-size: 16px; font-weight: 700; margin-bottom: 10px; }
+        .step-desc  { font-size: 13px; color: var(--muted); line-height: 1.6; }
+
+        /* ── SIGNALS SECTION ── */
+        #signals { border-top: 1px solid var(--border); }
+
+        .signals-layout {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 60px;
+            align-items: center;
+        }
+
+        .signal-demo {
+            background: var(--card);
+            border: 1px solid var(--border);
+            border-radius: 24px;
+            padding: 28px;
+            backdrop-filter: blur(10px);
+        }
+
+        .signal-demo-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            margin-bottom: 20px;
+        }
+
+        .demo-sym { font-size: 20px; font-weight: 700; font-family: 'Fira Code', monospace; }
+        .signal-big { font-size: 28px; font-weight: 700; color: var(--green); }
+
+        .demo-row {
+            display: flex;
+            justify-content: space-between;
+            padding: 12px 0;
+            border-bottom: 1px solid var(--border);
+            font-size: 14px;
+        }
+
+        .demo-row:last-child { border-bottom: none; }
+
+        .demo-label { color: var(--muted); }
+        .demo-val   { font-weight: 600; font-family: 'Fira Code', monospace; }
+        .demo-val.green { color: var(--green); }
+        .demo-val.red   { color: var(--red);   }
+
+        .indicator-row { display: flex; gap: 10px; flex-wrap: wrap; margin-top: 18px; }
+
+        .ind-chip {
+            background: rgba(255,255,255,0.05);
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            padding: 5px 12px;
+            font-size: 12px;
+            font-family: 'Fira Code', monospace;
+        }
+
+        .ind-chip .ind-v { color: var(--green); font-weight: 600; }
+
+        /* ── CONTACT ── */
+        #contact { border-top: 1px solid var(--border); }
+
+        .contact-layout {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 80px;
+            align-items: start;
+        }
+
+        .contact-info p { font-size: 15px; color: var(--muted); line-height: 1.7; margin-bottom: 32px; }
+
+        .contact-detail { display: flex; align-items: center; gap: 14px; margin-bottom: 18px; }
+
+        .contact-icon {
+            width: 40px; height: 40px;
+            background: rgba(0,255,136,0.08);
+            border: 1px solid rgba(0,255,136,0.15);
+            border-radius: 10px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 18px;
+            flex-shrink: 0;
+        }
+
+        .contact-text { font-size: 14px; color: var(--muted); }
+        .contact-text strong { color: #fff; display: block; margin-bottom: 2px; }
+
+        .contact-form {
+            background: var(--card);
+            border: 1px solid var(--border);
+            border-radius: 24px;
+            padding: 36px;
+            backdrop-filter: blur(10px);
+        }
+
+        .form-group { margin-bottom: 18px; }
+
+        .form-group label {
+            display: block;
+            font-size: 12px;
+            font-weight: 600;
+            color: var(--muted);
+            text-transform: uppercase;
+            letter-spacing: 0.06em;
+            margin-bottom: 8px;
+        }
+
+        .form-group input,
+        .form-group textarea {
+            width: 100%;
+            background: rgba(255,255,255,0.05);
+            border: 1px solid rgba(255,255,255,0.08);
+            border-radius: 12px;
+            padding: 13px 16px;
+            color: #fff;
+            font-size: 15px;
+            font-family: 'Plus Jakarta Sans', sans-serif;
+            outline: none;
+            transition: all 0.2s;
+            resize: none;
+        }
+
+        .form-group input:focus,
+        .form-group textarea:focus {
+            border-color: var(--green);
+            background: rgba(0,255,136,0.04);
+        }
+
+        .form-group input::placeholder,
+        .form-group textarea::placeholder { color: rgba(255,255,255,0.2); }
+
+        .btn-submit {
+            width: 100%;
+            padding: 15px;
+            background: linear-gradient(135deg, var(--green), var(--blue));
+            border: none;
+            border-radius: 12px;
+            color: #0a0e1a;
+            font-size: 16px;
+            font-weight: 700;
+            font-family: 'Plus Jakarta Sans', sans-serif;
+            cursor: pointer;
+            transition: all 0.2s;
+            margin-top: 4px;
+        }
+
+        .btn-submit:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 8px 30px rgba(0,255,136,0.25);
+        }
+
+        .form-success {
+            display: none;
+            background: rgba(0,255,136,0.08);
+            border: 1px solid rgba(0,255,136,0.2);
+            border-radius: 12px;
+            padding: 16px;
+            text-align: center;
+            color: var(--green);
+            font-weight: 600;
+            margin-top: 16px;
+        }
+
+        /* ── FOOTER ── */
+        footer {
+            position: relative;
+            z-index: 1;
+            border-top: 1px solid var(--border);
+            padding: 40px 60px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+        }
+
+        .footer-logo { display: flex; align-items: center; gap: 10px; text-decoration: none; }
+
+        .footer-logo-icon {
+            width: 32px; height: 32px;
+            background: linear-gradient(135deg, var(--green), var(--blue));
+            border-radius: 8px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 16px;
+        }
+
+        .footer-logo-text { font-size: 15px; font-weight: 700; color: #fff; }
+        .footer-logo-text span { color: var(--green); }
+
+        .footer-copy { font-size: 13px; color: var(--muted); }
+
+        .footer-links { display: flex; gap: 24px; }
+        .footer-links a { font-size: 13px; color: var(--muted); text-decoration: none; transition: color 0.2s; }
+        .footer-links a:hover { color: #fff; }
+
+        /* ── RESPONSIVE ── */
+        @media (max-width: 1024px) {
+            .hero-split { grid-template-columns: 1fr; gap: 40px; }
+            .hero-news-panel { height: 360px; }
+            .hero-inner { text-align: center; }
+            .hero-sub { margin: 0 auto 40px; }
+            .hero-btns { justify-content: center; }
+            .preview-cards { justify-content: center; }
+        }
+
+        @media (max-width: 900px) {
+            nav { padding: 16px 24px; }
+            .nav-links { display: none; }
+            .hero { padding: 140px 24px 60px; }
+            .stats-bar { grid-template-columns: repeat(2, 1fr); padding: 32px 24px; }
+            .stat-item:nth-child(2) { border-right: none; }
+            section { padding: 70px 24px; }
+            .features-grid { grid-template-columns: 1fr; }
+            #how { padding: 70px 24px; }
+            .steps { grid-template-columns: repeat(2, 1fr); gap: 40px; }
+            .steps::before { display: none; }
+            .signals-layout { grid-template-columns: 1fr; gap: 32px; }
+            .contact-layout { grid-template-columns: 1fr; gap: 40px; }
+            footer { flex-direction: column; gap: 20px; text-align: center; }
+        }
+    </style>
+</head>
+<body>
+
+<div class="grid-bg"></div>
+
+<!-- NAVBAR -->
+<nav>
+    <a href="#" class="nav-logo">
+        <div class="nav-logo-icon">📈</div>
+        <div class="nav-logo-text">Stock<span>Analyzer</span></div>
+    </a>
+
+    <ul class="nav-links">
+        <li><a href="#features">Features</a></li>
+        <li><a href="#how">How It Works</a></li>
+        <li><a href="#signals">Signals</a></li>
+        <li><a href="#contact">Contact</a></li>
+    </ul>
+
+    <div class="nav-btns">
+        <a href="{% url 'login' %}" class="btn-ghost">Login</a>
+        <a href="{% url 'register' %}" class="btn-primary">Get Started →</a>
+    </div>
+</nav>
+
+<!-- TICKER BAR -->
+<div class="ticker-bar">
+    <div class="ticker-track">
+        <div class="tick"><span class="tick-icon">🐂</span><span class="tick-label">StockAnalyzer</span><span>NSE India · Real-Time Signal Platform</span></div>
+        <div class="tick"><span class="tick-icon">⚡</span><span class="tick-label">BUY / SELL / WAIT</span><span>Instant signals powered by 6+ indicators</span></div>
+        <div class="tick"><span class="tick-icon">📊</span><span class="tick-label">Live Charts</span><span>Candlestick charts with EMA · SMA · Bollinger Bands</span></div>
+        <div class="tick"><span class="tick-icon">🎯</span><span class="tick-label">Precision Levels</span><span>Entry Price · Stop Loss · Target 1 · Target 2</span></div>
+        <div class="tick"><span class="tick-icon">🛡️</span><span class="tick-label">Risk Meter</span><span>Low / Medium / High — ATR-based classification</span></div>
+        <div class="tick"><span class="tick-icon">🧮</span><span class="tick-label">Position Sizing</span><span>Know exactly how many shares to buy</span></div>
+        <div class="tick"><span class="tick-icon">👁️</span><span class="tick-label">Watchlist</span><span>Monitor your favourite NSE stocks live</span></div>
+        <div class="tick"><span class="tick-icon">📈</span><span class="tick-label">3 Trade Modes</span><span>Intraday · Swing · Long Term</span></div>
+        <div class="tick"><span class="tick-icon">🔬</span><span class="tick-label">Indicators</span><span>RSI · MACD · EMA · SMA · Bollinger · ATR</span></div>
+        <div class="tick"><span class="tick-icon">🆓</span><span class="tick-label">100% Free</span><span>No credit card · No broker connection needed</span></div>
+        <!-- duplicate for seamless loop -->
+        <div class="tick"><span class="tick-icon">🐂</span><span class="tick-label">StockAnalyzer</span><span>NSE India · Real-Time Signal Platform</span></div>
+        <div class="tick"><span class="tick-icon">⚡</span><span class="tick-label">BUY / SELL / WAIT</span><span>Instant signals powered by 6+ indicators</span></div>
+        <div class="tick"><span class="tick-icon">📊</span><span class="tick-label">Live Charts</span><span>Candlestick charts with EMA · SMA · Bollinger Bands</span></div>
+        <div class="tick"><span class="tick-icon">🎯</span><span class="tick-label">Precision Levels</span><span>Entry Price · Stop Loss · Target 1 · Target 2</span></div>
+        <div class="tick"><span class="tick-icon">🛡️</span><span class="tick-label">Risk Meter</span><span>Low / Medium / High — ATR-based classification</span></div>
+        <div class="tick"><span class="tick-icon">🧮</span><span class="tick-label">Position Sizing</span><span>Know exactly how many shares to buy</span></div>
+        <div class="tick"><span class="tick-icon">👁️</span><span class="tick-label">Watchlist</span><span>Monitor your favourite NSE stocks live</span></div>
+        <div class="tick"><span class="tick-icon">📈</span><span class="tick-label">3 Trade Modes</span><span>Intraday · Swing · Long Term</span></div>
+        <div class="tick"><span class="tick-icon">🔬</span><span class="tick-label">Indicators</span><span>RSI · MACD · EMA · SMA · Bollinger · ATR</span></div>
+        <div class="tick"><span class="tick-icon">🆓</span><span class="tick-label">100% Free</span><span>No credit card · No broker connection needed</span></div>
+    </div>
+</div>
+
+<!-- HERO -->
+<div class="hero">
+    <div class="hero-glow-left"></div>
+    <div class="hero-glow-right"></div>
+
+    <div class="hero-split">
+
+        <!-- LEFT — headline + CTAs + index cards -->
+        <div class="hero-inner">
+            <div class="hero-badge">
+                <div class="badge-dot"></div>
+                Live NSE Signals · Real-Time Analysis
+            </div>
+
+            <h1>
+                Smart Signals for<br>
+                <span class="accent">NSE Stock Trading</span>
+            </h1>
+
+            <p class="hero-sub">
+                Enter any NSE stock symbol and get instant BUY / SELL / WAIT signals powered by RSI, MACD, Bollinger Bands, EMA, and ATR — all in one dashboard.
+            </p>
+
+            <div class="hero-btns">
+                <a href="{% url 'register' %}" class="btn-hero-primary">
+                    Start Analyzing Free →
+                </a>
+                <a href="{% url 'login' %}" class="btn-hero-ghost">
+                    Sign In
+                </a>
+            </div>
+
+            <div class="hero-preview">
+                <div class="preview-label">Live Market Indices</div>
+                <div class="preview-cards">
+                    <!-- NIFTY 50 live card -->
+                    <div class="preview-card index-card">
+                        <div class="sym">NIFTY 50</div>
+                        <div class="price" id="niftyPrice"><span class="loading-dot"></span></div>
+                        <div class="index-meta">
+                            <span id="niftyChange" class="idx-change">—</span>
+                            <span id="niftyPct" class="idx-pct">—</span>
+                        </div>
+                        <div class="index-sub">NSE · Updated live</div>
+                    </div>
+                    <!-- SENSEX live card -->
+                    <div class="preview-card index-card">
+                        <div class="sym">SENSEX</div>
+                        <div class="price" id="sensexPrice"><span class="loading-dot"></span></div>
+                        <div class="index-meta">
+                            <span id="sensexChange" class="idx-change">—</span>
+                            <span id="sensexPct" class="idx-pct">—</span>
+                        </div>
+                        <div class="index-sub">BSE · Updated live</div>
+                    </div>
+                    <!-- Signals preview -->
+                    <div class="preview-card info-card">
+                        <div class="sym">INSIDE APP</div>
+                        <div style="margin-top:10px;display:flex;flex-direction:column;gap:7px;">
+                            <span class="signal-tag signal-buy" style="display:inline-block;width:fit-content;">STRONG BUY</span>
+                            <span class="signal-tag signal-sell" style="display:inline-block;width:fit-content;">SELL</span>
+                            <span class="signal-tag signal-wait" style="display:inline-block;width:fit-content;">WAIT</span>
+                        </div>
+                        <div class="index-sub" style="margin-top:10px;">Any NSE stock → instant signal</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- RIGHT — Live News Feed -->
+        <div class="hero-news-panel">
+            <div class="news-panel-header">
+                <span class="news-panel-title">📰 Market News</span>
+                <span class="news-live-badge">
+                    <span class="news-live-dot"></span>LIVE
+                </span>
+            </div>
+
+            <div class="news-feed" id="newsFeed">
+                <!-- Skeleton placeholders shown while loading -->
+                <div class="news-skeleton"></div>
+                <div class="news-skeleton"></div>
+                <div class="news-skeleton"></div>
+                <div class="news-skeleton"></div>
+                <div class="news-skeleton"></div>
+                <div class="news-skeleton"></div>
+            </div>
+
+            <div class="news-footer">
+                <span>Sources: Economic Times · Moneycontrol · Auto-refreshes every 5 min</span>
+            </div>
+        </div>
+
+    </div>
+</div>
+
+<!-- STATS BAR -->
+<div class="stats-bar">
+    <div class="stat-item">
+        <div class="stat-num">6+</div>
+        <div class="stat-label">Indicators Calculated</div>
+    </div>
+    <div class="stat-item">
+        <div class="stat-num">500+</div>
+        <div class="stat-label">NSE Stocks Supported</div>
+    </div>
+    <div class="stat-item">
+        <div class="stat-num">3</div>
+        <div class="stat-label">Trade Modes (Intraday / Swing / Long)</div>
+    </div>
+    <div class="stat-item">
+        <div class="stat-num">Free</div>
+        <div class="stat-label">No Credit Card Required</div>
+    </div>
+</div>
+
+<!-- FEATURES -->
+<section id="features">
+    <div class="section-label">Features</div>
+    <div class="section-title">Everything you need to<br>trade smarter</div>
+    <p class="section-sub">Built for NSE India traders who want data-driven signals without the noise.</p>
+
+    <div class="features-grid">
+        <div class="feature-card">
+            <div class="feature-icon">📊</div>
+            <div class="feature-title">Live Candlestick Charts</div>
+            <div class="feature-desc">TradingView-powered candlestick charts with EMA, SMA, and Bollinger Band overlays. Switch between intraday, swing, and long-term views instantly.</div>
+        </div>
+        <div class="feature-card">
+            <div class="feature-icon">⚡</div>
+            <div class="feature-title">Instant BUY / SELL Signals</div>
+            <div class="feature-desc">Multi-indicator scoring system combining RSI, MACD, EMA crossovers, Bollinger Bands, and volume spikes to generate clear actionable signals.</div>
+        </div>
+        <div class="feature-card">
+            <div class="feature-icon">🎯</div>
+            <div class="feature-title">Entry, Stop Loss & Targets</div>
+            <div class="feature-desc">Every signal comes with precise entry price, stop loss level, Target 1 and Target 2 — calculated using ATR for each trade type.</div>
+        </div>
+        <div class="feature-card">
+            <div class="feature-icon">🛡️</div>
+            <div class="feature-title">Risk Level Meter</div>
+            <div class="feature-desc">Low / Medium / High risk classification based on ATR as a percentage of price. Know your risk before you trade.</div>
+        </div>
+        <div class="feature-card">
+            <div class="feature-icon">👁️</div>
+            <div class="feature-title">Watchlist with Live Prices</div>
+            <div class="feature-desc">Save your favourite NSE stocks and monitor live price updates and signal changes from your personal watchlist sidebar.</div>
+        </div>
+        <div class="feature-card">
+            <div class="feature-icon">🧮</div>
+            <div class="feature-title">Position Size Calculator</div>
+            <div class="feature-desc">Enter your capital and the calculator tells you how many shares to buy based on your stop loss distance and risk tolerance.</div>
+        </div>
+    </div>
+</section>
+
+<!-- HOW IT WORKS -->
+<div id="how">
+    <div class="inner">
+        <div class="section-label">How It Works</div>
+        <div class="section-title">From symbol to signal<br>in seconds</div>
+        <p class="section-sub" style="margin-bottom:60px;">Four simple steps. No complex setup. Just enter a stock symbol and go.</p>
+
+        <div class="steps">
+            <div class="step">
+                <div class="step-num">01</div>
+                <div class="step-title">Enter Symbol</div>
+                <div class="step-desc">Type any NSE stock symbol like RELIANCE, TCS, or HDFCBANK into the search bar.</div>
+            </div>
+            <div class="step">
+                <div class="step-num">02</div>
+                <div class="step-title">Fetch Live Data</div>
+                <div class="step-desc">App fetches live price from Finnhub and historical candles to build the chart.</div>
+            </div>
+            <div class="step">
+                <div class="step-num">03</div>
+                <div class="step-title">Calculate Indicators</div>
+                <div class="step-desc">RSI, MACD, Bollinger Bands, EMA, ATR and volume analysis run automatically.</div>
+            </div>
+            <div class="step">
+                <div class="step-num">04</div>
+                <div class="step-title">Get Your Signal</div>
+                <div class="step-desc">Receive a clear BUY / SELL / WAIT with entry, stop loss, and both targets shown.</div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- SIGNALS DEMO -->
+<section id="signals">
+    <div class="section-label">Signal Panel</div>
+    <div class="section-title">See exactly what you get<br>for every analysis</div>
+    <p class="section-sub">No guesswork. Every field explained. Built for traders who act on data.</p>
+
+    <div class="signals-layout">
+        <div>
+            <p style="color:var(--muted);font-size:15px;line-height:1.7;margin-bottom:24px;">
+                The signal panel on the right side of your dashboard shows everything you need to make a trading decision. No interpretation required — the app tells you exactly what to do and where to place your levels.
+            </p>
+            <p style="color:var(--muted);font-size:15px;line-height:1.7;margin-bottom:24px;">
+                The app is a <strong style="color:#fff;">research analyst</strong>, not a broker. You take the signal and execute manually in Zerodha, Groww, or Upstox.
+            </p>
+            <ul style="list-style:none;display:flex;flex-direction:column;gap:14px;">
+                <li style="display:flex;gap:12px;align-items:flex-start;font-size:14px;">
+                    <span style="color:var(--green);margin-top:2px;">✓</span>
+                    <span style="color:var(--muted);">Works for <strong style="color:#fff;">Intraday, Swing, and Long Term</strong> traders</span>
+                </li>
+                <li style="display:flex;gap:12px;align-items:flex-start;font-size:14px;">
+                    <span style="color:var(--green);margin-top:2px;">✓</span>
+                    <span style="color:var(--muted);">Signals saved in history so you can <strong style="color:#fff;">track accuracy</strong></span>
+                </li>
+                <li style="display:flex;gap:12px;align-items:flex-start;font-size:14px;">
+                    <span style="color:var(--green);margin-top:2px;">✓</span>
+                    <span style="color:var(--muted);">Risk-Reward ratio shown for every trade</span>
+                </li>
+                <li style="display:flex;gap:12px;align-items:flex-start;font-size:14px;">
+                    <span style="color:var(--green);margin-top:2px;">✓</span>
+                    <span style="color:var(--muted);">Volume spike detection confirms signal strength</span>
+                </li>
+            </ul>
+        </div>
+
+        <div class="signal-demo">
+            <div class="signal-demo-header">
+                <span class="demo-sym">RELIANCE</span>
+                <span class="signal-big">BUY ↑</span>
+            </div>
+            <div class="demo-row">
+                <span class="demo-label">Entry Price</span>
+                <span class="demo-val green">₹2,847.50</span>
+            </div>
+            <div class="demo-row">
+                <span class="demo-label">Stop Loss</span>
+                <span class="demo-val red">₹2,763.20</span>
+            </div>
+            <div class="demo-row">
+                <span class="demo-label">Target 1</span>
+                <span class="demo-val green">₹2,959.10</span>
+            </div>
+            <div class="demo-row">
+                <span class="demo-label">Target 2</span>
+                <span class="demo-val green">₹3,102.85</span>
+            </div>
+            <div class="demo-row">
+                <span class="demo-label">Risk Level</span>
+                <span class="demo-val" style="color:#ffc400;">MEDIUM</span>
+            </div>
+            <div class="demo-row">
+                <span class="demo-label">Risk : Reward</span>
+                <span class="demo-val">1 : 2.4</span>
+            </div>
+            <div class="indicator-row">
+                <div class="ind-chip">RSI <span class="ind-v">38.4</span></div>
+                <div class="ind-chip">MACD <span class="ind-v">+12.3</span></div>
+                <div class="ind-chip">EMA9 <span class="ind-v">X EMA21</span></div>
+                <div class="ind-chip">BB <span class="ind-v">Lower</span></div>
+                <div class="ind-chip">ATR <span class="ind-v">56.2</span></div>
+            </div>
+        </div>
+    </div>
+</section>
+
+<!-- CONTACT -->
+<section id="contact">
+    <div class="section-label">Contact</div>
+    <div class="section-title">Get in touch</div>
+    <p class="section-sub">Have a question or feedback? Send a message and we'll get back to you.</p>
+
+    <div class="contact-layout">
+        <div class="contact-info">
+            <p>StockAnalyzer is built for NSE India traders. If you have suggestions, found a bug, or want to know more about how the signals work — reach out.</p>
+            <div class="contact-detail">
+                <div class="contact-icon">📧</div>
+                <div class="contact-text">
+                    <strong>Email</strong>
+                    support@stockanalyzer.app
+                </div>
+            </div>
+            <div class="contact-detail">
+                <div class="contact-icon">📍</div>
+                <div class="contact-text">
+                    <strong>Market Coverage</strong>
+                    NSE India — All major stocks
+                </div>
+            </div>
+            <div class="contact-detail">
+                <div class="contact-icon">⏰</div>
+                <div class="contact-text">
+                    <strong>Market Hours</strong>
+                    Mon – Fri, 9:15 AM – 3:30 PM IST
+                </div>
+            </div>
+            <div class="contact-detail">
+                <div class="contact-icon">⚠️</div>
+                <div class="contact-text">
+                    <strong>Disclaimer</strong>
+                    Signals are for educational use only. Not financial advice.
+                </div>
+            </div>
+        </div>
+
+        <div class="contact-form">
+            <div class="form-group">
+                <label>Your Name</label>
+                <input type="text" id="contactName" placeholder="Enter your name">
+            </div>
+            <div class="form-group">
+                <label>Email Address</label>
+                <input type="email" id="contactEmail" placeholder="Enter your email">
+            </div>
+            <div class="form-group">
+                <label>Message</label>
+                <textarea id="contactMsg" rows="5" placeholder="Write your message here..."></textarea>
+            </div>
+            <button class="btn-submit" onclick="submitContact()">Send Message →</button>
+            <div class="form-success" id="contactSuccess">
+                ✓ Message received! We'll get back to you soon.
+            </div>
+        </div>
+    </div>
+</section>
+
+<!-- FOOTER -->
+<footer>
+    <a href="#" class="footer-logo">
+        <div class="footer-logo-icon">📈</div>
+        <div class="footer-logo-text">Stock<span>Analyzer</span></div>
+    </a>
+    <div class="footer-copy">© 2025 StockAnalyzer. For educational purposes only.</div>
+    <div class="footer-links">
+        <a href="#features">Features</a>
+        <a href="#how">How It Works</a>
+        <a href="#contact">Contact</a>
+        <a href="{% url 'login' %}">Login</a>
+    </div>
+</footer>
+
+<script>
+// ── NIFTY & SENSEX LIVE FETCH ──────────────────────────────
+async function fetchIndices() {
+    try {
+        const res = await fetch('/api/market/');
+        if (!res.ok) throw new Error('Failed');
+        const data = await res.json();
+
+        function renderIndex(priceId, changeId, pctId, obj) {
+            if (!obj || obj.price === 0) return;
+            const isUp  = obj.change >= 0;
+            const arrow = isUp ? '▲' : '▼';
+            const cls   = isUp ? 'up' : 'down';
+            document.getElementById(priceId).innerHTML =
+                `<span style="font-family:'Fira Code',monospace;font-size:20px;font-weight:700;">
+                    ${obj.price.toLocaleString('en-IN')}
+                </span>`;
+            document.getElementById(changeId).innerHTML =
+                `<span class="${cls}">${arrow} ${Math.abs(obj.change).toLocaleString('en-IN')}</span>`;
+            document.getElementById(pctId).innerHTML =
+                `<span class="${cls}">(${isUp ? '+' : ''}${obj.change_pct}%)</span>`;
+        }
+
+        renderIndex('niftyPrice',  'niftyChange',  'niftyPct',  data.nifty);
+        renderIndex('sensexPrice', 'sensexChange', 'sensexPct', data.sensex);
+    } catch (e) {
+        ['niftyPrice','sensexPrice'].forEach(id => {
+            document.getElementById(id).innerHTML =
+                '<span style="font-size:13px;color:rgba(255,255,255,0.3);">Market closed</span>';
+        });
+    }
+}
+
+fetchIndices();
+setInterval(fetchIndices, 60000);
+
+// ── LIVE NEWS FEED ─────────────────────────────────────────
+async function fetchNews() {
+    const feed = document.getElementById('newsFeed');
+    try {
+        const res = await fetch('/api/news/');
+        if (!res.ok) throw new Error('Failed');
+        const data = await res.json();
+
+        if (!data.news || data.news.length === 0) {
+            feed.innerHTML = `
+                <div class="news-error">
+                    <div class="news-error-icon">📭</div>
+                    <div>No news available right now.<br>Check back during market hours.</div>
+                </div>`;
+            return;
+        }
+
+        feed.innerHTML = data.news.map(item => `
+            <a class="news-item" href="${escapeHtml(item.link)}" target="_blank" rel="noopener noreferrer">
+                <div class="news-item-meta">
+                    <span class="news-source">${escapeHtml(item.source)}</span>
+                    <span class="news-dot"></span>
+                    <span class="news-time">${escapeHtml(item.time)}</span>
+                </div>
+                <div class="news-item-title">${escapeHtml(item.title)}</div>
+            </a>
+        `).join('');
+    } catch (e) {
+        feed.innerHTML = `
+            <div class="news-error">
+                <div class="news-error-icon">🔌</div>
+                <div>Could not load news.<br>Please refresh the page.</div>
+            </div>`;
+    }
+}
+
+function escapeHtml(str) {
+    if (!str) return '';
+    return String(str)
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#39;');
+}
+
+fetchNews();
+setInterval(fetchNews, 300000); // refresh every 5 minutes
+
+// ── CONTACT FORM ───────────────────────────────────────────
+function submitContact() {
+    const name  = document.getElementById('contactName').value.trim();
+    const email = document.getElementById('contactEmail').value.trim();
+    const msg   = document.getElementById('contactMsg').value.trim();
+
+    if (!name || !email || !msg) {
+        alert('Please fill in all fields.');
+        return;
+    }
+
+    document.getElementById('contactSuccess').style.display = 'block';
+    document.getElementById('contactName').value  = '';
+    document.getElementById('contactEmail').value = '';
+    document.getElementById('contactMsg').value   = '';
+
+    setTimeout(() => {
+        document.getElementById('contactSuccess').style.display = 'none';
+    }, 5000);
+}
+
+// ── ACTIVE NAV ON SCROLL ───────────────────────────────────
+const sections = document.querySelectorAll('section, #how, #features');
+const navLinks  = document.querySelectorAll('.nav-links a');
+
+window.addEventListener('scroll', () => {
+    let current = '';
+    sections.forEach(sec => {
+        const top = sec.offsetTop - 120;
+        if (window.scrollY >= top) current = sec.id || '';
+    });
+    navLinks.forEach(a => {
+        a.style.color = a.getAttribute('href') === '#' + current
+            ? '#00ff88'
+            : 'rgba(255,255,255,0.4)';
+    });
+});
+</script>
+
+</body>
+</html>

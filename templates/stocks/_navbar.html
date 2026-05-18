@@ -1,0 +1,64 @@
+{% comment %}
+Shared navbar partial — include in every user-facing page.
+Pass `active_page` from the template: 'dashboard', 'news', 'screener', 'candles', 'profile'
+Example: {% include 'stocks/_navbar.html' with active_page='news' %}
+{% endcomment %}
+{% load static %}
+
+<nav class="navbar" id="mainNavbar">
+
+    <!-- Logo -->
+    <a href="{% url 'dashboard' %}" class="nav-logo" aria-label="StockAnalyzer Home">
+        <div class="nav-logo-icon">📈</div>
+        <div class="nav-logo-text">Stock<span>Analyzer</span></div>
+    </a>
+
+    {% if show_search %}
+    <div class="nav-search">
+        <span class="nav-search-icon">🔍</span>
+        <input type="text" id="searchInput" placeholder="Search NSE stock... eg: RELIANCE" autocomplete="off">
+    </div>
+    {% endif %}
+
+    <!-- Nav links -->
+    <div class="nav-actions" id="navActions">
+
+        <a href="{% url 'dashboard' %}" class="nav-btn{% if active_page == 'dashboard' %} active{% endif %}"
+           aria-label="Dashboard">📊 Dashboard</a>
+
+        <a href="{% url 'news' %}" class="nav-btn{% if active_page == 'news' %} active{% endif %}"
+           aria-label="News">📰 News</a>
+
+        <a href="{% url 'screener' %}" class="nav-btn{% if active_page == 'screener' %} active{% endif %}"
+           aria-label="Screener">🔍 Screener</a>
+
+        <a href="{% url 'candles' %}" class="nav-btn{% if active_page == 'candles' %} active{% endif %}"
+           aria-label="Candles">🕯 Candles</a>
+
+        {% if show_watchlist %}
+        <button class="nav-btn" id="watchlistNavBtn" onclick="toggleWatchlistDropdown()">
+            ⭐ Watchlist
+            <span class="nav-badge" id="watchlistCount">{{ watchlist|length }}</span>
+        </button>
+        {% endif %}
+
+        {% if show_upstox %}
+        <button class="nav-btn green" onclick="showUpstoxModal()">🔄 Upstox</button>
+        {% endif %}
+
+        <a href="{% url 'profile' %}" class="nav-avatar{% if active_page == 'profile' %} active{% endif %}"
+           title="My Profile" aria-label="Profile">
+            {{ profile.avatar_initials|default:request.user.username|slice:":2"|upper }}
+        </a>
+
+        <a href="{% url 'logout' %}" class="nav-btn nav-logout" aria-label="Logout">↩ Logout</a>
+
+    </div>
+
+    <!-- Hamburger (mobile) -->
+    <button class="nav-hamburger" id="navHamburger" onclick="toggleMobileNav()"
+            aria-label="Toggle menu" aria-expanded="false">
+        <span></span><span></span><span></span>
+    </button>
+
+</nav>

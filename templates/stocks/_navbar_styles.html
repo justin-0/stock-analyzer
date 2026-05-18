@@ -1,0 +1,264 @@
+{% comment %}Shared navbar CSS — include inside <style> or as a <style> block in every page head{% endcomment %}
+<style id="navbar-styles">
+/* ══════════════════════════════════════════════════════
+   SHARED NAVBAR — StockAnalyzer
+   Single source of truth for all user-facing pages
+   ══════════════════════════════════════════════════════ */
+
+/* ── Base ── */
+.navbar {
+    height: var(--nav-h, 56px);
+    background: rgba(10, 14, 26, 0.98);
+    border-bottom: 1px solid var(--border, rgba(255,255,255,0.07));
+    display: flex;
+    align-items: center;
+    padding: 0 20px;
+    gap: 12px;
+    position: sticky;
+    top: 0;
+    z-index: 200;
+    backdrop-filter: blur(20px);
+    -webkit-backdrop-filter: blur(20px);
+}
+
+/* ── Search bar (dashboard only) ── */
+.nav-search {
+    flex: 1;
+    max-width: 360px;
+    position: relative;
+}
+.nav-search input {
+    width: 100%;
+    background: rgba(255,255,255,0.05);
+    border: 1px solid var(--border, rgba(255,255,255,0.07));
+    border-radius: 10px;
+    padding: 8px 14px 8px 36px;
+    color: #fff;
+    font-size: 14px;
+    font-family: 'Plus Jakarta Sans', sans-serif;
+    outline: none;
+    transition: all 0.2s;
+}
+.nav-search input:focus {
+    border-color: var(--green, #00ff88);
+    background: rgba(0,255,136,0.04);
+}
+.nav-search input::placeholder { color: var(--muted, rgba(255,255,255,0.4)); }
+.nav-search-icon {
+    position: absolute;
+    left: 11px; top: 50%;
+    transform: translateY(-50%);
+    color: var(--muted, rgba(255,255,255,0.4));
+    font-size: 14px;
+    pointer-events: none;
+}
+
+/* ── Logo ── */
+.nav-logo {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    text-decoration: none;
+    flex-shrink: 0;
+}
+.nav-logo-icon {
+    width: 32px;
+    height: 32px;
+    background: linear-gradient(135deg, var(--green, #00ff88), var(--blue, #00aaff));
+    border-radius: 8px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 16px;
+    flex-shrink: 0;
+}
+.nav-logo-text {
+    font-size: 15px;
+    font-weight: 700;
+    color: #fff;
+    white-space: nowrap;
+}
+.nav-logo-text span { color: var(--green, #00ff88); }
+
+/* ── Actions container ── */
+.nav-actions {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    margin-left: auto;
+    flex-wrap: nowrap;
+}
+
+/* ── Nav button (links) ── */
+.nav-btn {
+    display: flex;
+    align-items: center;
+    gap: 5px;
+    padding: 6px 13px;
+    background: transparent;
+    border: 1px solid var(--border, rgba(255,255,255,0.07));
+    border-radius: 8px;
+    color: var(--muted, rgba(255,255,255,0.4));
+    font-size: 12px;
+    font-weight: 600;
+    font-family: 'Plus Jakarta Sans', sans-serif;
+    cursor: pointer;
+    text-decoration: none;
+    transition: border-color 0.2s, color 0.2s, background 0.2s;
+    white-space: nowrap;
+    line-height: 1;
+}
+.nav-btn:hover {
+    border-color: rgba(255, 255, 255, 0.22);
+    color: #fff;
+    background: rgba(255,255,255,0.04);
+}
+.nav-btn.active {
+    border-color: rgba(0, 255, 136, 0.4);
+    color: var(--green, #00ff88);
+    background: rgba(0, 255, 136, 0.07);
+}
+
+/* ── Green accent button (Upstox etc.) ── */
+.nav-btn.green {
+    border-color: rgba(0, 255, 136, 0.3);
+    color: var(--green, #00ff88);
+    background: rgba(0, 255, 136, 0.06);
+}
+.nav-btn.green:hover {
+    background: rgba(0, 255, 136, 0.14);
+}
+
+/* ── Watchlist badge ── */
+.nav-badge {
+    background: var(--green, #00ff88);
+    color: #0a0e1a;
+    font-size: 9px;
+    font-weight: 800;
+    border-radius: 10px;
+    padding: 1px 6px;
+    line-height: 1.4;
+}
+
+/* ── Avatar circle ── */
+.nav-avatar {
+    width: 32px;
+    height: 32px;
+    background: linear-gradient(135deg, var(--green, #00ff88), var(--blue, #00aaff));
+    border-radius: 8px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 11px;
+    font-weight: 800;
+    color: #0a0e1a;
+    text-decoration: none;
+    flex-shrink: 0;
+    cursor: pointer;
+    transition: transform 0.18s, box-shadow 0.18s;
+    border: 2px solid transparent;
+}
+.nav-avatar:hover {
+    transform: scale(1.06);
+    box-shadow: 0 0 0 2px rgba(0,255,136,0.35);
+}
+.nav-avatar.active {
+    border-color: var(--green, #00ff88);
+    box-shadow: 0 0 0 2px rgba(0,255,136,0.25);
+}
+
+/* ── Logout button special color ── */
+.nav-logout {
+    border-color: rgba(255, 71, 87, 0.15);
+    color: rgba(255, 71, 87, 0.6);
+}
+.nav-logout:hover {
+    border-color: rgba(255, 71, 87, 0.45);
+    color: var(--red, #ff4757);
+    background: rgba(255, 71, 87, 0.07);
+}
+
+/* ── Hamburger (mobile) ── */
+.nav-hamburger {
+    display: none;
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+    gap: 5px;
+    width: 36px;
+    height: 36px;
+    background: rgba(255,255,255,0.05);
+    border: 1px solid var(--border, rgba(255,255,255,0.07));
+    border-radius: 8px;
+    cursor: pointer;
+    padding: 0;
+    margin-left: auto;
+    flex-shrink: 0;
+}
+.nav-hamburger span {
+    display: block;
+    width: 18px;
+    height: 2px;
+    background: rgba(255,255,255,0.7);
+    border-radius: 2px;
+    transition: all 0.2s;
+}
+.nav-hamburger.open span:nth-child(1) { transform: translateY(7px) rotate(45deg); }
+.nav-hamburger.open span:nth-child(2) { opacity: 0; }
+.nav-hamburger.open span:nth-child(3) { transform: translateY(-7px) rotate(-45deg); }
+
+/* ── Responsive ── */
+@media (max-width: 768px) {
+    .nav-hamburger { display: flex; }
+
+    .nav-actions {
+        display: none;
+        position: absolute;
+        top: var(--nav-h, 56px);
+        left: 0; right: 0;
+        background: rgba(10, 14, 26, 0.99);
+        border-bottom: 1px solid var(--border, rgba(255,255,255,0.07));
+        flex-direction: column;
+        align-items: stretch;
+        gap: 4px;
+        padding: 12px 16px 16px;
+        backdrop-filter: blur(20px);
+        -webkit-backdrop-filter: blur(20px);
+    }
+    .nav-actions.mobile-open {
+        display: flex;
+    }
+    .nav-btn, .nav-avatar {
+        width: 100%;
+        border-radius: 8px;
+        padding: 10px 14px;
+        justify-content: flex-start;
+    }
+    .nav-avatar {
+        width: 100%;
+        height: auto;
+        font-size: 13px;
+        font-weight: 700;
+    }
+}
+</style>
+
+<script>
+function toggleMobileNav() {
+    const actions = document.getElementById('navActions');
+    const burger  = document.getElementById('navHamburger');
+    if (!actions || !burger) return;
+    const open = actions.classList.toggle('mobile-open');
+    burger.classList.toggle('open', open);
+    burger.setAttribute('aria-expanded', open);
+}
+// Close on outside click
+document.addEventListener('click', function(e) {
+    const nb = document.getElementById('mainNavbar');
+    if (nb && !nb.contains(e.target)) {
+        document.getElementById('navActions')?.classList.remove('mobile-open');
+        const b = document.getElementById('navHamburger');
+        if (b) { b.classList.remove('open'); b.setAttribute('aria-expanded', 'false'); }
+    }
+});
+</script>

@@ -1,0 +1,318 @@
+<!DOCTYPE html>
+{% load static %}
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>StockAnalyzer — Market News</title>
+    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&family=Fira+Code:wght@400;500;600&display=swap" rel="stylesheet">
+    <style>
+        *, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
+        :root {
+            --bg:     #0a0e1a;
+            --bg2:    #0d1224;
+            --green:  #00ff88;
+            --blue:   #00aaff;
+            --red:    #ff4757;
+            --yellow: #ffc400;
+            --border: rgba(255,255,255,0.07);
+            --muted:  rgba(255,255,255,0.4);
+            --nav-h:  56px;
+        }
+        html, body { min-height: 100%; background: var(--bg); color: #fff; font-family: 'Plus Jakarta Sans', sans-serif; }
+        ::-webkit-scrollbar { width: 4px; } ::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.1); border-radius: 4px; }
+
+
+        /* PAGE */
+        .page { max-width: 1300px; margin: 0 auto; padding: 28px 20px 60px; }
+
+        /* HEADER */
+        .page-header { margin-bottom: 28px; }
+        .page-title { font-size: 26px; font-weight: 800; margin-bottom: 6px; }
+        .page-title span { color: var(--green); }
+        .page-sub { font-size: 13px; color: var(--muted); }
+
+        /* SEARCH + FILTERS */
+        .news-controls {
+            display: flex; align-items: center; gap: 12px; margin-bottom: 24px; flex-wrap: wrap;
+        }
+        .news-search-wrap { position: relative; flex: 1; max-width: 380px; }
+        .news-search-wrap input {
+            width: 100%; background: rgba(255,255,255,0.05); border: 1px solid var(--border); border-radius: 10px;
+            padding: 10px 14px 10px 38px; color: #fff; font-size: 14px; font-family: 'Plus Jakarta Sans', sans-serif; outline: none; transition: all 0.2s;
+        }
+        .news-search-wrap input:focus { border-color: var(--green); background: rgba(0,255,136,0.04); }
+        .news-search-wrap input::placeholder { color: var(--muted); }
+        .news-search-icon { position: absolute; left: 12px; top: 50%; transform: translateY(-50%); color: var(--muted); font-size: 14px; pointer-events: none; }
+        .filter-pills { display: flex; gap: 6px; flex-wrap: wrap; }
+        .pill {
+            padding: 6px 14px; border-radius: 20px; font-size: 12px; font-weight: 600;
+            border: 1px solid var(--border); background: transparent; color: var(--muted);
+            cursor: pointer; transition: all 0.2s; font-family: 'Plus Jakarta Sans', sans-serif;
+        }
+        .pill:hover { border-color: rgba(255,255,255,0.2); color: #fff; }
+        .pill.active { border-color: var(--green); color: var(--green); background: rgba(0,255,136,0.08); }
+        .refresh-btn {
+            padding: 8px 16px; background: rgba(0,255,136,0.1); border: 1px solid rgba(0,255,136,0.25);
+            border-radius: 8px; color: var(--green); font-size: 12px; font-weight: 700;
+            font-family: 'Plus Jakarta Sans', sans-serif; cursor: pointer; transition: all 0.2s; margin-left: auto;
+        }
+        .refresh-btn:hover { background: rgba(0,255,136,0.18); }
+
+        /* STOCK SEARCH RESULT */
+        .stock-search-result {
+            background: rgba(0,170,255,0.06); border: 1px solid rgba(0,170,255,0.2); border-radius: 12px;
+            padding: 14px 18px; margin-bottom: 20px; display: none; align-items: center; gap: 14px;
+        }
+        .stock-search-result.visible { display: flex; }
+        .ssr-label { font-size: 13px; color: var(--blue); font-weight: 700; }
+        .ssr-sub { font-size: 12px; color: var(--muted); }
+        .ssr-btn {
+            margin-left: auto; padding: 7px 14px; background: rgba(0,170,255,0.15);
+            border: 1px solid rgba(0,170,255,0.3); border-radius: 8px; color: var(--blue);
+            font-size: 12px; font-weight: 700; text-decoration: none; transition: all 0.2s; font-family: 'Plus Jakarta Sans', sans-serif;
+            cursor: pointer;
+        }
+        .ssr-btn:hover { background: rgba(0,170,255,0.25); }
+
+        /* NEWS GRID */
+        .news-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
+        @media (max-width: 900px) { .news-grid { grid-template-columns: 1fr; } }
+
+        .news-column-title {
+            font-size: 11px; font-weight: 700; color: var(--muted); text-transform: uppercase;
+            letter-spacing: 0.1em; margin-bottom: 14px; padding-bottom: 8px;
+            border-bottom: 1px solid var(--border);
+        }
+
+        /* NEWS CARD */
+        .news-card {
+            display: block; text-decoration: none; padding: 14px 16px;
+            background: rgba(255,255,255,0.02); border: 1px solid var(--border);
+            border-radius: 12px; margin-bottom: 10px; transition: all 0.2s; cursor: pointer;
+        }
+        .news-card:hover { background: rgba(255,255,255,0.05); border-color: rgba(255,255,255,0.12); transform: translateY(-1px); }
+        .news-card-meta { display: flex; align-items: center; gap: 8px; margin-bottom: 8px; }
+        .news-source {
+            font-size: 10px; font-weight: 700; padding: 2px 8px; border-radius: 4px;
+            text-transform: uppercase; letter-spacing: 0.06em;
+        }
+        .src-et     { background: rgba(255,136,0,0.12); color: #ff8800; }
+        .src-mint   { background: rgba(0,255,136,0.1);  color: var(--green); }
+        .src-bs     { background: rgba(0,170,255,0.1);  color: var(--blue); }
+        .src-other  { background: rgba(255,255,255,0.06); color: var(--muted); }
+        .news-time { font-size: 10px; color: var(--muted); font-family: 'Fira Code', monospace; }
+        .news-headline { font-size: 13px; font-weight: 600; color: rgba(255,255,255,0.85); line-height: 1.5; }
+        .news-card:hover .news-headline { color: #fff; }
+
+        /* LOADING */
+        .news-loading { display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 60px 20px; gap: 14px; }
+        .spinner { width: 32px; height: 32px; border: 3px solid rgba(0,255,136,0.2); border-top-color: var(--green); border-radius: 50%; animation: spin 0.8s linear infinite; }
+        @keyframes spin { to { transform: rotate(360deg); } }
+        .loading-text { font-size: 13px; color: var(--muted); }
+
+        /* EMPTY */
+        .news-empty { text-align: center; padding: 48px 20px; color: var(--muted); font-size: 14px; }
+
+        /* LAST UPDATED */
+        .last-updated { font-size: 11px; color: var(--muted); text-align: right; margin-bottom: 14px; font-family: 'Fira Code', monospace; }
+
+        /* AUTO-REFRESH indicator */
+        .auto-refresh-dot { display: inline-block; width: 6px; height: 6px; background: var(--green); border-radius: 50%; margin-right: 5px; animation: pulse 2s infinite; }
+        @keyframes pulse { 0%,100%{opacity:1;} 50%{opacity:0.3;} }
+    </style>
+{% include 'stocks/_navbar_styles.html' %}
+</head>
+<body>
+
+{% include 'stocks/_navbar.html' with active_page='news' %}
+
+<div class="page">
+    <div class="page-header">
+        <div class="page-title">📰 Market <span>News</span></div>
+        <div class="page-sub">Live feeds from Economic Times, Mint, Business Standard</div>
+    </div>
+
+    <div class="news-controls">
+        <div class="news-search-wrap">
+            <span class="news-search-icon">🔍</span>
+            <input type="text" id="newsSearchInput" placeholder="Search stock news... eg: RELIANCE" autocomplete="off">
+        </div>
+        <div class="filter-pills">
+            <button class="pill active" data-filter="all" onclick="setFilter('all', this)">All</button>
+            <button class="pill" data-filter="ET" onclick="setFilter('ET', this)">Economic Times</button>
+            <button class="pill" data-filter="Mint" onclick="setFilter('Mint', this)">Mint</button>
+            <button class="pill" data-filter="BS" onclick="setFilter('BS', this)">Business Std</button>
+        </div>
+        <button class="refresh-btn" onclick="loadAllNews()">↻ Refresh</button>
+    </div>
+
+    <!-- Stock-specific search result banner -->
+    <div class="stock-search-result" id="stockSearchResult">
+        <div>
+            <div class="ssr-label" id="ssrLabel">Showing news for RELIANCE</div>
+            <div class="ssr-sub" id="ssrSub">4 articles found</div>
+        </div>
+        <button class="ssr-btn" id="ssrAnalyzeBtn">Analyze on Dashboard →</button>
+        <button class="ssr-btn" onclick="clearStockSearch()" style="background:rgba(255,71,87,0.1);border-color:rgba(255,71,87,0.25);color:#ff4757;">✕ Clear</button>
+    </div>
+
+    <div class="last-updated" id="lastUpdated"><span class="auto-refresh-dot"></span>Loading...</div>
+
+    <div class="news-grid" id="newsGrid">
+        <div>
+            <div class="news-column-title">🇮🇳 India Market News</div>
+            <div id="indiaNewsCol">
+                <div class="news-loading"><div class="spinner"></div><div class="loading-text">Fetching news...</div></div>
+            </div>
+        </div>
+        <div>
+            <div class="news-column-title">📈 Stock Specific News</div>
+            <div id="stockNewsCol">
+                <div class="news-empty">Enter a stock symbol above to see stock-specific news</div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+'use strict';
+
+let allNews      = [];
+let activeFilter = 'all';
+let currentStock = '';
+let refreshTimer = null;
+
+const SOURCE_CLASS = {
+    'Economic Times': 'src-et',
+    'ET Markets':     'src-et',
+    'Mint Markets':   'src-mint',
+    'Business Std':   'src-bs',
+};
+
+function sourceClass(src) {
+    for (const [k, v] of Object.entries(SOURCE_CLASS)) {
+        if (src.includes(k.split(' ')[0])) return v;
+    }
+    return 'src-other';
+}
+
+function shortSource(src) {
+    if (src.includes('Economic') || src.includes('ET')) return 'ET';
+    if (src.includes('Mint'))     return 'Mint';
+    if (src.includes('Business')) return 'BS';
+    return src.slice(0, 4);
+}
+
+function newsCard(item) {
+    const cls = sourceClass(item.source);
+    const src = shortSource(item.source);
+    return `
+        <a class="news-card" href="${item.link}" target="_blank" rel="noopener">
+            <div class="news-card-meta">
+                <span class="news-source ${cls}">${src}</span>
+                <span class="news-time">${item.time || ''}</span>
+            </div>
+            <div class="news-headline">${item.title}</div>
+        </a>`;
+}
+
+function renderIndia(news) {
+    const col = document.getElementById('indiaNewsCol');
+    if (!col) return;
+    let filtered = news;
+    if (activeFilter !== 'all') {
+        filtered = news.filter(n => shortSource(n.source) === activeFilter);
+    }
+    if (!filtered.length) {
+        col.innerHTML = '<div class="news-empty">No news for this filter</div>';
+        return;
+    }
+    col.innerHTML = filtered.map(newsCard).join('');
+}
+
+function loadAllNews() {
+    const col = document.getElementById('indiaNewsCol');
+    col.innerHTML = '<div class="news-loading"><div class="spinner"></div><div class="loading-text">Fetching market news...</div></div>';
+
+    fetch('/api/news/')
+        .then(r => r.json())
+        .then(data => {
+            allNews = data.news || [];
+            renderIndia(allNews);
+            const now = new Date().toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' });
+            document.getElementById('lastUpdated').innerHTML = `<span class="auto-refresh-dot"></span>Last updated: ${now} IST`;
+        })
+        .catch(() => {
+            col.innerHTML = '<div class="news-empty">Could not load news. Check connection.</div>';
+        });
+}
+
+function loadStockNews(symbol) {
+    if (!symbol) return;
+    currentStock = symbol.toUpperCase().trim();
+    const col = document.getElementById('stockNewsCol');
+    col.innerHTML = '<div class="news-loading"><div class="spinner"></div><div class="loading-text">Fetching ' + currentStock + ' news...</div></div>';
+
+    fetch('/api/stock-news/?symbol=' + encodeURIComponent(currentStock))
+        .then(r => r.json())
+        .then(data => {
+            const news = data.news || [];
+            const result = document.getElementById('stockSearchResult');
+            document.getElementById('ssrLabel').textContent = `Showing news for ${currentStock}`;
+            document.getElementById('ssrSub').textContent   = `${news.length} article${news.length !== 1 ? 's' : ''} found`;
+            document.getElementById('ssrAnalyzeBtn').onclick = () => {
+                window.location.href = '/dashboard/?stock=' + currentStock;
+            };
+            result.classList.add('visible');
+
+            if (!news.length) {
+                col.innerHTML = `<div class="news-empty">No news found for ${currentStock}<br><span style="font-size:11px;color:rgba(255,255,255,0.2)">Try a different symbol</span></div>`;
+                return;
+            }
+            col.innerHTML = news.map(newsCard).join('');
+        })
+        .catch(() => {
+            col.innerHTML = '<div class="news-empty">Could not load stock news</div>';
+        });
+}
+
+function clearStockSearch() {
+    currentStock = '';
+    document.getElementById('stockSearchResult').classList.remove('visible');
+    document.getElementById('newsSearchInput').value = '';
+    document.getElementById('stockNewsCol').innerHTML = '<div class="news-empty">Enter a stock symbol above to see stock-specific news</div>';
+}
+
+function setFilter(filter, el) {
+    activeFilter = filter;
+    document.querySelectorAll('.pill').forEach(p => p.classList.remove('active'));
+    el.classList.add('active');
+    renderIndia(allNews);
+}
+
+// Search input
+document.getElementById('newsSearchInput').addEventListener('input', function() {
+    const val = this.value.trim().toUpperCase();
+    if (val.length >= 2) {
+        clearTimeout(window._searchTimer);
+        window._searchTimer = setTimeout(() => loadStockNews(val), 600);
+    } else if (!val) {
+        clearStockSearch();
+    }
+});
+
+document.getElementById('newsSearchInput').addEventListener('keydown', function(e) {
+    if (e.key === 'Enter') {
+        const val = this.value.trim().toUpperCase();
+        if (val) loadStockNews(val);
+    }
+});
+
+// Init
+loadAllNews();
+// Auto-refresh every 5 minutes
+refreshTimer = setInterval(loadAllNews, 300000);
+</script>
+</body>
+</html>

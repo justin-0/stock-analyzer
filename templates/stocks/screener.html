@@ -1,0 +1,412 @@
+<!DOCTYPE html>
+{% load static %}
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>StockAnalyzer — Screener</title>
+    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&family=Fira+Code:wght@400;500;600&display=swap" rel="stylesheet">
+    <style>
+        *, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
+        :root {
+            --bg:     #0a0e1a; --bg2: #0d1224;
+            --green:  #00ff88; --blue: #00aaff;
+            --red:    #ff4757; --yellow: #ffc400;
+            --border: rgba(255,255,255,0.07);
+            --muted:  rgba(255,255,255,0.4);
+            --nav-h:  56px;
+        }
+        html, body { min-height: 100%; background: var(--bg); color: #fff; font-family: 'Plus Jakarta Sans', sans-serif; }
+        ::-webkit-scrollbar { width: 4px; } ::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.1); border-radius: 4px; }
+
+
+        /* PAGE */
+        .page { max-width: 1400px; margin: 0 auto; padding: 28px 20px 60px; }
+        .page-header { margin-bottom: 24px; }
+        .page-title { font-size: 26px; font-weight: 800; margin-bottom: 6px; }
+        .page-title span { color: var(--green); }
+        .page-sub { font-size: 13px; color: var(--muted); }
+
+        /* CONTROLS */
+        .screener-controls {
+            display: flex; align-items: center; gap: 12px; margin-bottom: 20px; flex-wrap: wrap;
+        }
+        .scan-btn {
+            padding: 10px 24px; background: linear-gradient(135deg, var(--green), var(--blue));
+            border: none; border-radius: 10px; color: #0a0e1a; font-size: 14px; font-weight: 800;
+            font-family: 'Plus Jakarta Sans', sans-serif; cursor: pointer; transition: all 0.2s;
+            display: flex; align-items: center; gap: 8px;
+        }
+        .scan-btn:hover { opacity: 0.9; transform: translateY(-1px); }
+        .scan-btn:disabled { opacity: 0.5; cursor: not-allowed; transform: none; }
+        .filter-pills { display: flex; gap: 6px; flex-wrap: wrap; }
+        .pill {
+            padding: 6px 14px; border-radius: 20px; font-size: 12px; font-weight: 600;
+            border: 1px solid var(--border); background: transparent; color: var(--muted);
+            cursor: pointer; transition: all 0.2s; font-family: 'Plus Jakarta Sans', sans-serif;
+        }
+        .pill:hover { border-color: rgba(255,255,255,0.2); color: #fff; }
+        .pill.active { border-color: var(--green); color: var(--green); background: rgba(0,255,136,0.08); }
+        .last-scan { font-size: 11px; color: var(--muted); font-family: 'Fira Code', monospace; margin-left: auto; }
+
+        /* PROGRESS */
+        .scan-progress {
+            background: rgba(255,255,255,0.03); border: 1px solid var(--border); border-radius: 12px;
+            padding: 20px 24px; margin-bottom: 20px; display: none;
+        }
+        .scan-progress.visible { display: block; }
+        .progress-label { font-size: 13px; color: var(--muted); margin-bottom: 10px; }
+        .progress-bar-wrap { background: rgba(255,255,255,0.06); border-radius: 4px; height: 6px; overflow: hidden; }
+        .progress-bar-fill { height: 100%; background: linear-gradient(90deg, var(--green), var(--blue)); border-radius: 4px; transition: width 0.4s ease; width: 0%; }
+        .progress-stock { font-size: 11px; color: var(--muted); margin-top: 6px; font-family: 'Fira Code', monospace; }
+
+        /* SUMMARY CARDS */
+        .summary-row { display: grid; grid-template-columns: repeat(5, 1fr); gap: 10px; margin-bottom: 20px; }
+        @media (max-width: 900px) { .summary-row { grid-template-columns: repeat(3, 1fr); } }
+        .summary-card { background: rgba(255,255,255,0.03); border: 1px solid var(--border); border-radius: 10px; padding: 12px 14px; text-align: center; }
+        .summary-card-val { font-size: 22px; font-weight: 800; font-family: 'Fira Code', monospace; }
+        .summary-card-lbl { font-size: 10px; color: var(--muted); font-weight: 600; text-transform: uppercase; letter-spacing: 0.06em; margin-top: 3px; }
+        .summary-card.strong-buy .summary-card-val { color: var(--green); }
+        .summary-card.buy .summary-card-val { color: #80ffbb; }
+        .summary-card.wait .summary-card-val { color: var(--yellow); }
+        .summary-card.sell .summary-card-val { color: var(--red); }
+        .summary-card.total .summary-card-val { color: var(--blue); }
+
+        /* TABLE */
+        .table-wrap { overflow-x: auto; border-radius: 12px; border: 1px solid var(--border); }
+        table { width: 100%; border-collapse: collapse; font-size: 13px; }
+        thead tr { background: rgba(255,255,255,0.03); border-bottom: 1px solid var(--border); }
+        thead th {
+            padding: 12px 14px; text-align: left; font-size: 10px; font-weight: 700;
+            color: var(--muted); text-transform: uppercase; letter-spacing: 0.08em;
+            cursor: pointer; white-space: nowrap; user-select: none;
+        }
+        thead th:hover { color: #fff; }
+        thead th.sorted { color: var(--green); }
+        tbody tr { border-bottom: 1px solid rgba(255,255,255,0.03); cursor: pointer; transition: background 0.15s; }
+        tbody tr:hover { background: rgba(255,255,255,0.04); }
+        tbody tr:last-child { border-bottom: none; }
+        td { padding: 11px 14px; white-space: nowrap; }
+        .td-sym { font-family: 'Fira Code', monospace; font-weight: 700; color: #fff; font-size: 13px; }
+        .td-price { font-family: 'Fira Code', monospace; font-weight: 600; }
+        .td-chg { font-family: 'Fira Code', monospace; font-size: 12px; }
+        .up { color: var(--green); } .down { color: var(--red); }
+        .td-signal { display: inline-block; padding: 3px 8px; border-radius: 5px; font-size: 11px; font-weight: 700; }
+        .sig-strong-buy { background: rgba(0,255,136,0.18); color: var(--green); }
+        .sig-buy        { background: rgba(0,255,136,0.1);  color: #80ffbb; }
+        .sig-wait       { background: rgba(255,196,0,0.12); color: var(--yellow); }
+        .sig-sell       { background: rgba(255,71,87,0.12); color: var(--red); }
+        .sig-strong-sell{ background: rgba(255,71,87,0.2);  color: #ff2030; }
+        .td-score { font-family: 'Fira Code', monospace; font-size: 12px; }
+        .td-rsi { font-family: 'Fira Code', monospace; font-size: 12px; }
+        .rsi-os { color: var(--green); } .rsi-ob { color: var(--red); } .rsi-n { color: var(--yellow); }
+        .td-risk { font-size: 11px; font-weight: 700; }
+        .risk-low { color: var(--green); } .risk-med { color: var(--yellow); } .risk-high { color: var(--red); }
+        .vol-spike { color: var(--yellow); font-size: 11px; }
+        .td-best { font-size: 10px; color: var(--muted); background: rgba(255,255,255,0.05); border-radius: 4px; padding: 2px 6px; }
+
+        /* EMPTY / LOADING */
+        .table-placeholder { padding: 60px 20px; text-align: center; color: var(--muted); }
+        .table-placeholder .big { font-size: 40px; margin-bottom: 12px; opacity: 0.5; }
+        .table-placeholder p { font-size: 14px; margin-bottom: 6px; }
+        .table-placeholder small { font-size: 12px; opacity: 0.5; }
+        .spinner { width: 32px; height: 32px; border: 3px solid rgba(0,255,136,0.2); border-top-color: var(--green); border-radius: 50%; animation: spin 0.8s linear infinite; margin: 0 auto 12px; }
+        @keyframes spin { to { transform: rotate(360deg); } }
+
+        /* SORT arrow */
+        .sort-arrow { display: inline-block; margin-left: 4px; opacity: 0.4; }
+        th.sorted .sort-arrow { opacity: 1; color: var(--green); }
+    </style>
+{% include 'stocks/_navbar_styles.html' %}
+</head>
+<body>
+
+{% include 'stocks/_navbar.html' with active_page='screener' %}
+
+<div class="page">
+    <div class="page-header">
+        <div class="page-title">🔍 Market <span>Screener</span></div>
+        <div class="page-sub">Scan top 20 NSE stocks for signals, scores and opportunities</div>
+    </div>
+
+    <div class="screener-controls">
+        <button class="scan-btn" id="scanBtn" onclick="runScan()">
+            <span id="scanBtnIcon">⚡</span> Scan Now
+        </button>
+        <div class="filter-pills">
+            <button class="pill active" data-f="all"          onclick="applyFilter('all', this)">All</button>
+            <button class="pill"        data-f="BUY"          onclick="applyFilter('BUY', this)">BUY Only</button>
+            <button class="pill"        data-f="SELL"         onclick="applyFilter('SELL', this)">SELL Only</button>
+            <button class="pill"        data-f="LOW"          onclick="applyFilter('LOW', this)">Low Risk</button>
+            <button class="pill"        data-f="SPIKE"        onclick="applyFilter('SPIKE', this)">Vol Spike</button>
+        </div>
+        <span class="last-scan" id="lastScan">Not scanned yet</span>
+    </div>
+
+    <!-- Progress bar -->
+    <div class="scan-progress" id="scanProgress">
+        <div class="progress-label">Scanning stocks — please wait (~20-30 seconds)...</div>
+        <div class="progress-bar-wrap"><div class="progress-bar-fill" id="progressFill"></div></div>
+        <div class="progress-stock" id="progressStock">Starting scan...</div>
+    </div>
+
+    <!-- Summary cards -->
+    <div class="summary-row" id="summaryRow" style="display:none">
+        <div class="summary-card strong-buy"><div class="summary-card-val" id="sumStrongBuy">0</div><div class="summary-card-lbl">Strong Buy</div></div>
+        <div class="summary-card buy">       <div class="summary-card-val" id="sumBuy">0</div>      <div class="summary-card-lbl">Buy</div></div>
+        <div class="summary-card wait">      <div class="summary-card-val" id="sumWait">0</div>     <div class="summary-card-lbl">Wait</div></div>
+        <div class="summary-card sell">      <div class="summary-card-val" id="sumSell">0</div>     <div class="summary-card-lbl">Sell / Strong Sell</div></div>
+        <div class="summary-card total">     <div class="summary-card-val" id="sumTotal">0</div>    <div class="summary-card-lbl">Total Scanned</div></div>
+    </div>
+
+    <!-- Results table -->
+    <div class="table-wrap">
+        <table id="resultsTable">
+            <thead>
+                <tr>
+                    <th onclick="sortBy('symbol')">Symbol <span class="sort-arrow">↕</span></th>
+                    <th onclick="sortBy('price')">Price <span class="sort-arrow">↕</span></th>
+                    <th onclick="sortBy('change_pct')">Chg% <span class="sort-arrow">↕</span></th>
+                    <th onclick="sortBy('signal')">Signal <span class="sort-arrow">↕</span></th>
+                    <th onclick="sortBy('intraday')">Intraday <span class="sort-arrow">↕</span></th>
+                    <th onclick="sortBy('swing')">Swing <span class="sort-arrow">↕</span></th>
+                    <th onclick="sortBy('longterm')">Long Term <span class="sort-arrow">↕</span></th>
+                    <th onclick="sortBy('rsi')">RSI <span class="sort-arrow">↕</span></th>
+                    <th onclick="sortBy('risk')">Risk <span class="sort-arrow">↕</span></th>
+                    <th>Volume</th>
+                    <th>Best For</th>
+                </tr>
+            </thead>
+            <tbody id="resultsBody">
+                <tr><td colspan="11">
+                    <div class="table-placeholder">
+                        <div class="big">🔍</div>
+                        <p>Click <strong>Scan Now</strong> to analyze 20 NSE stocks</p>
+                        <small>Results cached for 10 minutes</small>
+                    </div>
+                </td></tr>
+            </tbody>
+        </table>
+    </div>
+</div>
+
+<script>
+'use strict';
+
+let allResults   = [];
+let filtered     = [];
+let activeFilter = 'all';
+let sortCol      = 'signal';
+let sortAsc      = true;
+let scanning     = false;
+
+const SIGNAL_ORDER = { 'STRONG BUY': 0, 'BUY': 1, 'WAIT': 2, 'SELL': 3, 'STRONG SELL': 4 };
+const RISK_ORDER   = { 'LOW': 0, 'MEDIUM': 1, 'HIGH': 2 };
+
+// Check localStorage cache
+const CACHE_KEY = 'sa_screener_cache';
+const CACHE_TTL = 10 * 60 * 1000; // 10 minutes
+
+function loadCache() {
+    try {
+        const raw = localStorage.getItem(CACHE_KEY);
+        if (!raw) return null;
+        const c = JSON.parse(raw);
+        if (Date.now() - c.ts < CACHE_TTL) return c.data;
+    } catch(e) {}
+    return null;
+}
+
+function saveCache(data) {
+    try { localStorage.setItem(CACHE_KEY, JSON.stringify({ ts: Date.now(), data })); } catch(e) {}
+}
+
+function runScan() {
+    if (scanning) return;
+
+    // Check cache first
+    const cached = loadCache();
+    if (cached) {
+        allResults = cached;
+        applyFilterAndRender();
+        const cacheAge = Math.floor((Date.now() - JSON.parse(localStorage.getItem(CACHE_KEY)).ts) / 60000);
+        document.getElementById('lastScan').textContent = `Cached ${cacheAge}m ago`;
+        return;
+    }
+
+    scanning = true;
+    const btn = document.getElementById('scanBtn');
+    btn.disabled = true;
+    document.getElementById('scanBtnIcon').textContent = '⏳';
+
+    const progress = document.getElementById('scanProgress');
+    progress.classList.add('visible');
+    document.getElementById('summaryRow').style.display = 'none';
+
+    const tbody = document.getElementById('resultsBody');
+    tbody.innerHTML = '<tr><td colspan="11"><div class="table-placeholder"><div class="spinner"></div><p>Scanning 20 stocks...</p><small>This takes 20–30 seconds</small></div></td></tr>';
+
+    // Animate progress bar (fake progress while waiting)
+    let fakeProgress = 0;
+    const fakeTimer = setInterval(() => {
+        fakeProgress = Math.min(fakeProgress + Math.random() * 4, 90);
+        document.getElementById('progressFill').style.width = fakeProgress + '%';
+        const stocks = ['RELIANCE','TCS','INFY','HDFCBANK','ICICIBANK','SBIN','WIPRO','BAJFINANCE','MARUTI','TATAMOTORS','AXISBANK','KOTAKBANK','HINDUNILVR','BHARTIARTL','ITC','SUNPHARMA','HCLTECH','LT','TATASTEEL','TITAN'];
+        const idx = Math.floor((fakeProgress / 90) * stocks.length);
+        document.getElementById('progressStock').textContent = 'Scanning: ' + (stocks[idx] || 'TITAN') + '...';
+    }, 800);
+
+    fetch('/api/screener/')
+        .then(r => r.json())
+        .then(data => {
+            clearInterval(fakeTimer);
+            document.getElementById('progressFill').style.width = '100%';
+            document.getElementById('progressStock').textContent = 'Done! ' + (data.count || 0) + ' stocks scanned.';
+
+            setTimeout(() => {
+                progress.classList.remove('visible');
+                scanning = false;
+                btn.disabled = false;
+                document.getElementById('scanBtnIcon').textContent = '⚡';
+
+                allResults = (data.results || []).map(r => ({
+                    symbol:     r.symbol,
+                    price:      r.quote?.current || 0,
+                    change_pct: r.quote?.change_pct || 0,
+                    signal:     r.signal || 'WAIT',
+                    intraday:   r.intraday_score || 0,
+                    swing:      r.swing_score    || 0,
+                    longterm:   r.longterm_score  || 0,
+                    rsi:        r.rsi || 0,
+                    risk:       r.risk || 'MEDIUM',
+                    vol_spike:  r.volume_spike || false,
+                    best:       r.best || '—',
+                }));
+
+                saveCache(allResults);
+                applyFilterAndRender();
+                const now = new Date().toLocaleTimeString('en-IN', { hour:'2-digit', minute:'2-digit' });
+                document.getElementById('lastScan').textContent = 'Scanned at ' + now;
+            }, 600);
+        })
+        .catch(err => {
+            clearInterval(fakeTimer);
+            scanning = false;
+            btn.disabled = false;
+            document.getElementById('scanBtnIcon').textContent = '⚡';
+            progress.classList.remove('visible');
+            tbody.innerHTML = '<tr><td colspan="11"><div class="table-placeholder"><p>Scan failed. Try again.</p><small>' + err.message + '</small></div></td></tr>';
+        });
+}
+
+function applyFilter(f, el) {
+    activeFilter = f;
+    document.querySelectorAll('.pill').forEach(p => p.classList.remove('active'));
+    el.classList.add('active');
+    applyFilterAndRender();
+}
+
+function applyFilterAndRender() {
+    switch (activeFilter) {
+        case 'BUY':   filtered = allResults.filter(r => r.signal.includes('BUY'));  break;
+        case 'SELL':  filtered = allResults.filter(r => r.signal.includes('SELL')); break;
+        case 'LOW':   filtered = allResults.filter(r => r.risk === 'LOW');           break;
+        case 'SPIKE': filtered = allResults.filter(r => r.vol_spike);               break;
+        default:      filtered = [...allResults];
+    }
+    sortResults();
+    renderTable();
+    renderSummary();
+}
+
+function sortBy(col) {
+    if (sortCol === col) sortAsc = !sortAsc;
+    else { sortCol = col; sortAsc = true; }
+    document.querySelectorAll('thead th').forEach(th => th.classList.remove('sorted'));
+    const headers = ['symbol','price','change_pct','signal','intraday','swing','longterm','rsi','risk'];
+    const idx = headers.indexOf(col);
+    if (idx >= 0) document.querySelectorAll('thead th')[idx]?.classList.add('sorted');
+    sortResults();
+    renderTable();
+}
+
+function sortResults() {
+    filtered.sort((a, b) => {
+        let va = a[sortCol], vb = b[sortCol];
+        if (sortCol === 'signal') { va = SIGNAL_ORDER[va] ?? 5; vb = SIGNAL_ORDER[vb] ?? 5; }
+        if (sortCol === 'risk')   { va = RISK_ORDER[va]   ?? 5; vb = RISK_ORDER[vb]   ?? 5; }
+        if (typeof va === 'string') return sortAsc ? va.localeCompare(vb) : vb.localeCompare(va);
+        return sortAsc ? va - vb : vb - va;
+    });
+}
+
+function sigClass(sig) {
+    if (sig === 'STRONG BUY')  return 'sig-strong-buy';
+    if (sig === 'BUY')         return 'sig-buy';
+    if (sig === 'WAIT')        return 'sig-wait';
+    if (sig === 'SELL')        return 'sig-sell';
+    if (sig === 'STRONG SELL') return 'sig-strong-sell';
+    return 'sig-wait';
+}
+
+function rsiClass(rsi) { return rsi < 35 ? 'rsi-os' : rsi > 65 ? 'rsi-ob' : 'rsi-n'; }
+function riskClass(r)  { return r === 'LOW' ? 'risk-low' : r === 'MEDIUM' ? 'risk-med' : 'risk-high'; }
+
+function fmt(n, dp=2) {
+    if (n === null || n === undefined || isNaN(n)) return '—';
+    return Number(n).toLocaleString('en-IN', { minimumFractionDigits: dp, maximumFractionDigits: dp });
+}
+
+function renderTable() {
+    const tbody = document.getElementById('resultsBody');
+    if (!filtered.length) {
+        tbody.innerHTML = '<tr><td colspan="11"><div class="table-placeholder"><div class="big">🔍</div><p>No stocks match this filter</p></div></td></tr>';
+        return;
+    }
+    tbody.innerHTML = filtered.map(r => `
+        <tr onclick="goToDashboard('${r.symbol}')">
+            <td class="td-sym">${r.symbol}</td>
+            <td class="td-price">₹${fmt(r.price)}</td>
+            <td class="td-chg ${r.change_pct >= 0 ? 'up' : 'down'}">${r.change_pct >= 0 ? '+' : ''}${fmt(r.change_pct)}%</td>
+            <td><span class="td-signal ${sigClass(r.signal)}">${r.signal}</span></td>
+            <td class="td-score" style="color:${scoreColor(r.intraday)}">${r.intraday}%</td>
+            <td class="td-score" style="color:${scoreColor(r.swing)}">${r.swing}%</td>
+            <td class="td-score" style="color:${scoreColor(r.longterm)}">${r.longterm}%</td>
+            <td class="td-rsi ${rsiClass(r.rsi)}">${fmt(r.rsi, 1)}</td>
+            <td class="td-risk ${riskClass(r.risk)}">${r.risk}</td>
+            <td>${r.vol_spike ? '<span class="vol-spike">⚡ SPIKE</span>' : '<span style="color:var(--muted);font-size:11px">Normal</span>'}</td>
+            <td><span class="td-best">${r.best}</span></td>
+        </tr>`).join('');
+}
+
+function scoreColor(s) {
+    if (s >= 70) return 'var(--green)';
+    if (s >= 50) return 'var(--yellow)';
+    return 'var(--red)';
+}
+
+function renderSummary() {
+    if (!allResults.length) { document.getElementById('summaryRow').style.display = 'none'; return; }
+    document.getElementById('summaryRow').style.display = '';
+    document.getElementById('sumStrongBuy').textContent = allResults.filter(r => r.signal === 'STRONG BUY').length;
+    document.getElementById('sumBuy').textContent       = allResults.filter(r => r.signal === 'BUY').length;
+    document.getElementById('sumWait').textContent      = allResults.filter(r => r.signal === 'WAIT').length;
+    document.getElementById('sumSell').textContent      = allResults.filter(r => r.signal.includes('SELL')).length;
+    document.getElementById('sumTotal').textContent     = allResults.length;
+}
+
+function goToDashboard(symbol) {
+    window.location.href = '/dashboard/?stock=' + symbol;
+}
+
+// Auto-load cache on page open
+const cached = loadCache();
+if (cached) {
+    allResults = cached;
+    applyFilterAndRender();
+    const age = Math.floor((Date.now() - JSON.parse(localStorage.getItem(CACHE_KEY)).ts) / 60000);
+    document.getElementById('lastScan').textContent = `Cached ${age}m ago — click Scan Now to refresh`;
+}
+</script>
+</body>
+</html>

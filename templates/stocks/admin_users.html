@@ -1,0 +1,292 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Users — StockAnalyzer Admin</title>
+    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&family=Fira+Code:wght@400;500;600&display=swap" rel="stylesheet">
+    <style>
+        *, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
+        :root {
+            --bg: #0a0e1a; --bg2: #0d1224;
+            --green: #00ff88; --blue: #00aaff;
+            --red: #ff4757; --yellow: #ffc400;
+            --text: #ffffff; --muted: rgba(255,255,255,0.4);
+            --border: rgba(255,255,255,0.07); --card: rgba(255,255,255,0.03);
+        }
+        body { font-family: 'Plus Jakarta Sans', sans-serif; background: var(--bg); color: var(--text); min-height: 100vh; }
+        .grid-bg {
+            position: fixed; inset: 0;
+            background-image: linear-gradient(rgba(255,255,255,0.015) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,0.015) 1px, transparent 1px);
+            background-size: 60px 60px; pointer-events: none; z-index: 0;
+        }
+        .admin-main { margin-left: 240px; min-height: 100vh; position: relative; z-index: 1; }
+        .topbar {
+            padding: 20px 32px; border-bottom: 1px solid var(--border);
+            display: flex; align-items: center; justify-content: space-between;
+            background: rgba(10,14,26,0.8); backdrop-filter: blur(20px);
+            position: sticky; top: 0; z-index: 50;
+        }
+        .topbar-left h1 { font-size: 20px; font-weight: 700; color: #fff; }
+        .topbar-left p { font-size: 13px; color: var(--muted); margin-top: 2px; }
+        .topbar-right { display: flex; align-items: center; gap: 12px; }
+        .ist-clock {
+            font-family: 'Fira Code', monospace; font-size: 13px; color: var(--green);
+            background: rgba(0,255,136,0.06); border: 1px solid rgba(0,255,136,0.12);
+            border-radius: 10px; padding: 8px 14px;
+        }
+        .page-content { padding: 28px 32px; }
+
+        /* FILTER TABS */
+        .filter-tabs { display: flex; gap: 8px; margin-bottom: 20px; }
+        .filter-tab {
+            padding: 8px 20px; border-radius: 10px; font-size: 13px; font-weight: 600;
+            text-decoration: none; transition: all 0.2s;
+            border: 1px solid var(--border); color: var(--muted);
+            font-family: 'Plus Jakarta Sans', sans-serif; cursor: pointer; background: transparent;
+        }
+        .filter-tab:hover { color: #fff; border-color: rgba(255,255,255,0.15); }
+        .filter-tab.active { background: rgba(0,255,136,0.1); border-color: rgba(0,255,136,0.25); color: var(--green); }
+        .filter-tab.red.active { background: rgba(255,71,87,0.1); border-color: rgba(255,71,87,0.25); color: var(--red); }
+
+        .total-label { font-size: 13px; color: var(--muted); margin-left: auto; align-self: center; }
+
+        /* PANEL */
+        .panel { background: var(--card); border: 1px solid var(--border); border-radius: 16px; overflow: hidden; }
+        .panel-header {
+            display: flex; align-items: center; justify-content: space-between;
+            padding: 16px 20px; border-bottom: 1px solid var(--border);
+        }
+        .panel-title { font-size: 14px; font-weight: 700; color: #fff; }
+
+        /* TABLE */
+        .data-table { width: 100%; border-collapse: collapse; }
+        .data-table th {
+            font-size: 11px; font-weight: 600; color: var(--muted);
+            text-transform: uppercase; letter-spacing: 0.08em;
+            padding: 10px 20px; text-align: left;
+            border-bottom: 1px solid var(--border); background: rgba(255,255,255,0.02);
+        }
+        .data-table td {
+            padding: 14px 20px; font-size: 13px; color: rgba(255,255,255,0.7);
+            border-bottom: 1px solid rgba(255,255,255,0.04); vertical-align: middle;
+        }
+        .data-table tr:last-child td { border-bottom: none; }
+        .data-table tr:hover td { background: rgba(255,255,255,0.02); }
+
+        .user-cell { display: flex; align-items: center; gap: 12px; }
+        .user-avatar {
+            width: 36px; height: 36px; border-radius: 50%;
+            background: linear-gradient(135deg, var(--green), var(--blue));
+            display: flex; align-items: center; justify-content: center;
+            font-size: 12px; font-weight: 700; color: #0a0e1a;
+            font-family: 'Fira Code', monospace; flex-shrink: 0;
+        }
+        .user-avatar.pending { background: linear-gradient(135deg, var(--yellow), var(--red)); }
+        .user-name { font-weight: 600; color: #fff; font-size: 14px; }
+        .user-email { font-size: 12px; color: var(--muted); margin-top: 1px; }
+
+        .status-pill {
+            display: inline-flex; align-items: center; gap: 6px;
+            padding: 4px 10px; border-radius: 20px; font-size: 11px; font-weight: 700;
+        }
+        .status-active { background: rgba(0,255,136,0.1); color: var(--green); border: 1px solid rgba(0,255,136,0.2); }
+        .status-pending { background: rgba(255,196,0,0.1); color: var(--yellow); border: 1px solid rgba(255,196,0,0.2); }
+        .status-dot { width: 5px; height: 5px; border-radius: 50%; background: currentColor; }
+
+        .exp-pill {
+            display: inline-block; padding: 3px 10px; border-radius: 6px;
+            font-size: 11px; font-weight: 600;
+        }
+        .exp-beginner     { background: rgba(0,170,255,0.1);  color: var(--blue); }
+        .exp-intermediate { background: rgba(255,196,0,0.1);  color: var(--yellow); }
+        .exp-expert       { background: rgba(0,255,136,0.1);  color: var(--green); }
+
+        .mono { font-family: 'Fira Code', monospace; font-size: 12px; }
+
+        /* ACTION BUTTONS */
+        .action-btns { display: flex; gap: 6px; }
+        .btn-sm {
+            padding: 5px 12px; border-radius: 7px; font-size: 12px; font-weight: 600;
+            font-family: 'Plus Jakarta Sans', sans-serif; cursor: pointer;
+            border: none; transition: all 0.15s; text-decoration: none;
+            display: inline-flex; align-items: center; gap: 4px;
+        }
+        .btn-view     { background: rgba(255,255,255,0.06); color: rgba(255,255,255,0.7); }
+        .btn-view:hover { background: rgba(255,255,255,0.1); color: #fff; }
+        .btn-approve  { background: rgba(0,255,136,0.12); color: var(--green); }
+        .btn-approve:hover { background: rgba(0,255,136,0.2); }
+        .btn-deactivate { background: rgba(255,196,0,0.1); color: var(--yellow); }
+        .btn-deactivate:hover { background: rgba(255,196,0,0.2); }
+        .btn-reject   { background: rgba(255,71,87,0.1); color: var(--red); }
+        .btn-reject:hover { background: rgba(255,71,87,0.2); }
+
+        .empty-state { text-align: center; padding: 60px 20px; color: var(--muted); font-size: 14px; }
+        .empty-icon { font-size: 40px; margin-bottom: 12px; }
+        .empty-title { font-size: 16px; font-weight: 600; color: rgba(255,255,255,0.5); margin-bottom: 6px; }
+
+        /* PENDING BANNER */
+        .pending-banner {
+            background: rgba(255,196,0,0.06); border: 1px solid rgba(255,196,0,0.15);
+            border-radius: 12px; padding: 14px 18px;
+            display: flex; align-items: center; gap: 12px;
+            margin-bottom: 20px; font-size: 14px; color: var(--yellow);
+        }
+
+        @media (max-width: 900px) {
+            .admin-main { margin-left: 0; }
+            .page-content { padding: 20px 16px; }
+        }
+    </style>
+</head>
+<body>
+<div class="grid-bg"></div>
+{% include 'stocks/admin_sidebar.html' %}
+
+<div class="admin-main">
+    <div class="topbar">
+        <div class="topbar-left">
+            <h1>👥 Users</h1>
+            <p>Manage user access and approvals</p>
+        </div>
+        <div class="topbar-right">
+            <div class="ist-clock" id="topClock">--:-- --</div>
+        </div>
+    </div>
+
+    <div class="page-content">
+
+        {% if filter_type == 'pending' and total > 0 %}
+        <div class="pending-banner">
+            ⚠️ <strong>{{ total }} user{{ total|pluralize }}</strong> waiting for your approval — review below
+        </div>
+        {% endif %}
+
+        <!-- FILTER TABS -->
+        <div class="filter-tabs">
+            <a href="?filter=all" class="filter-tab {% if filter_type == 'all' %}active{% endif %}">All Users</a>
+            <a href="?filter=active" class="filter-tab {% if filter_type == 'active' %}active{% endif %}">Active</a>
+            <a href="?filter=pending" class="filter-tab red {% if filter_type == 'pending' %}active{% endif %}">
+                Pending
+                {% if pending_users > 0 %} ({{ pending_users }}){% endif %}
+            </a>
+            <span class="total-label">{{ total }} user{{ total|pluralize }} shown</span>
+        </div>
+
+        <!-- USERS TABLE -->
+        <div class="panel">
+            <div class="panel-header">
+                <div class="panel-title">
+                    {% if filter_type == 'pending' %}⏳ Pending Approval
+                    {% elif filter_type == 'active' %}✅ Active Users
+                    {% else %}👥 All Users{% endif %}
+                </div>
+            </div>
+
+            {% if users %}
+            <table class="data-table">
+                <thead>
+                    <tr>
+                        <th>User</th>
+                        <th>Phone</th>
+                        <th>Experience</th>
+                        <th>Trade Type</th>
+                        <th>Capital</th>
+                        <th>Joined</th>
+                        <th>Status</th>
+                        <th>Actions</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for user in users %}
+                    <tr>
+                        <td>
+                            <div class="user-cell">
+                                <div class="user-avatar {% if not user.is_active %}pending{% endif %}">
+                                    {{ user.first_name|first|upper }}{{ user.last_name|first|upper }}
+                                </div>
+                                <div>
+                                    <div class="user-name">{{ user.get_full_name|default:user.username }}</div>
+                                    <div class="user-email">{{ user.email }}</div>
+                                </div>
+                            </div>
+                        </td>
+                        <td class="mono">{{ user.profile.phone|default:"—" }}</td>
+                        <td>
+                            {% if user.profile.trading_experience == 'beginner' %}
+                                <span class="exp-pill exp-beginner">Beginner</span>
+                            {% elif user.profile.trading_experience == 'intermediate' %}
+                                <span class="exp-pill exp-intermediate">Intermediate</span>
+                            {% elif user.profile.trading_experience == 'expert' %}
+                                <span class="exp-pill exp-expert">Expert</span>
+                            {% else %}—{% endif %}
+                        </td>
+                        <td style="color:var(--muted);">{{ user.profile.preferred_trade_type|capfirst|default:"—" }}</td>
+                        <td class="mono">₹{{ user.profile.capital|default:"0" }}</td>
+                        <td class="mono" style="color:var(--muted);font-size:11px;">{{ user.date_joined|date:"d M Y" }}</td>
+                        <td>
+                            {% if user.is_active %}
+                                <span class="status-pill status-active">
+                                    <span class="status-dot"></span>Active
+                                </span>
+                            {% else %}
+                                <span class="status-pill status-pending">
+                                    <span class="status-dot"></span>Pending
+                                </span>
+                            {% endif %}
+                        </td>
+                        <td>
+                            <div class="action-btns">
+                                <a href="{% url 'admin_user_detail' user.id %}" class="btn-sm btn-view">👁 View</a>
+                                {% if not user.is_active %}
+                                    <form method="POST" action="{% url 'admin_approve' user.id %}" style="display:inline;">
+                                        {% csrf_token %}
+                                        <button type="submit" class="btn-sm btn-approve">✓ Approve</button>
+                                    </form>
+                                    <form method="POST" action="{% url 'admin_reject' user.id %}" style="display:inline;" onsubmit="return confirm('Delete this user permanently?')">
+                                        {% csrf_token %}
+                                        <button type="submit" class="btn-sm btn-reject">✕ Reject</button>
+                                    </form>
+                                {% else %}
+                                    <form method="POST" action="{% url 'admin_deactivate' user.id %}" style="display:inline;" onsubmit="return confirm('Deactivate this user?')">
+                                        {% csrf_token %}
+                                        <button type="submit" class="btn-sm btn-deactivate">⏸ Deactivate</button>
+                                    </form>
+                                {% endif %}
+                            </div>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+            {% else %}
+            <div class="empty-state">
+                <div class="empty-icon">
+                    {% if filter_type == 'pending' %}⏳{% else %}👥{% endif %}
+                </div>
+                <div class="empty-title">
+                    {% if filter_type == 'pending' %}No pending users — all caught up!
+                    {% elif filter_type == 'active' %}No active users yet
+                    {% else %}No users found{% endif %}
+                </div>
+            </div>
+            {% endif %}
+        </div>
+
+    </div>
+</div>
+
+<script>
+function updateClock() {
+    const now = new Date();
+    const ist = new Date(now.toLocaleString('en-US', { timeZone: 'Asia/Kolkata' }));
+    const h = ist.getHours(), m = String(ist.getMinutes()).padStart(2,'0'), s = String(ist.getSeconds()).padStart(2,'0');
+    const ampm = h >= 12 ? 'PM' : 'AM', h12 = h % 12 || 12;
+    const el = document.getElementById('topClock');
+    if (el) el.textContent = `${h12}:${m}:${s} ${ampm} IST`;
+}
+updateClock();
+setInterval(updateClock, 1000);
+</script>
+</body>
+</html>

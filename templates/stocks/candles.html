@@ -1,0 +1,713 @@
+{% load static %}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Candlestick Patterns — StockAnalyzer</title>
+<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&family=Fira+Code:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+*,*::before,*::after{margin:0;padding:0;box-sizing:border-box}
+:root{
+  --bg:#0a0e1a;--bg2:#0d1224;--bg3:#111827;
+  --green:#00ff88;--blue:#00aaff;--red:#ff4757;--yellow:#ffc400;--purple:#a064ff;
+  --border:rgba(255,255,255,0.07);--muted:rgba(255,255,255,0.4);
+  --text:#fff;--nav-h:56px;
+}
+html{scroll-behavior:smooth}
+body{font-family:'Plus Jakarta Sans',sans-serif;background:var(--bg);color:var(--text);min-height:100vh}
+::-webkit-scrollbar{width:4px;height:4px}
+::-webkit-scrollbar-track{background:transparent}
+::-webkit-scrollbar-thumb{background:rgba(255,255,255,0.1);border-radius:4px}
+
+
+/* ── HERO ── */
+.hero{padding:60px 20px 40px;text-align:center;position:relative;overflow:hidden}
+.hero::before{content:'';position:absolute;inset:0;background:radial-gradient(ellipse 80% 60% at 50% 0%,rgba(0,255,136,0.06),transparent);pointer-events:none}
+.hero-badge{display:inline-flex;align-items:center;gap:6px;background:rgba(0,255,136,0.1);border:1px solid rgba(0,255,136,0.2);border-radius:20px;padding:5px 14px;font-size:11px;font-weight:700;color:var(--green);letter-spacing:0.06em;text-transform:uppercase;margin-bottom:20px}
+.hero-title{font-size:clamp(28px,5vw,52px);font-weight:800;line-height:1.15;margin-bottom:16px;letter-spacing:-0.02em}
+.hero-title span{background:linear-gradient(135deg,var(--green),var(--blue));-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text}
+.hero-sub{font-size:16px;color:var(--muted);max-width:560px;margin:0 auto 32px;line-height:1.6}
+.hero-stats{display:flex;justify-content:center;gap:32px;flex-wrap:wrap}
+.hero-stat{text-align:center}
+.hero-stat-num{font-size:28px;font-weight:800;font-family:'Fira Code',monospace}
+.hero-stat-num.g{color:var(--green)}
+.hero-stat-num.r{color:var(--red)}
+.hero-stat-num.b{color:var(--blue)}
+.hero-stat-label{font-size:11px;color:var(--muted);font-weight:600;text-transform:uppercase;letter-spacing:0.06em;margin-top:2px}
+
+/* ── SECTION WRAPPER ── */
+.section{max-width:1200px;margin:0 auto;padding:40px 20px}
+.section-header{margin-bottom:32px}
+.section-tag{display:inline-flex;align-items:center;gap:6px;font-size:11px;font-weight:700;color:var(--green);text-transform:uppercase;letter-spacing:0.1em;margin-bottom:10px}
+.section-title{font-size:clamp(20px,3vw,30px);font-weight:800;letter-spacing:-0.01em;margin-bottom:8px}
+.section-desc{font-size:14px;color:var(--muted);line-height:1.6;max-width:640px}
+
+/* ── WHAT IS A CANDLE ── */
+.candle-intro{display:grid;grid-template-columns:1fr 1fr;gap:40px;align-items:center}
+@media(max-width:768px){.candle-intro{grid-template-columns:1fr}}
+.candle-visual-wrap{display:flex;justify-content:center;align-items:center;padding:40px;background:rgba(255,255,255,0.02);border:1px solid var(--border);border-radius:20px;position:relative;min-height:320px}
+.candle-svg-wrap{position:relative;display:flex;align-items:center;justify-content:center}
+
+/* Interactive SVG candle */
+.candle-diagram{width:260px;height:280px}
+
+.candle-parts{display:flex;flex-direction:column;gap:12px}
+.cp-item{display:flex;align-items:flex-start;gap:12px;padding:12px;border-radius:10px;background:rgba(255,255,255,0.02);border:1px solid var(--border);cursor:pointer;transition:all 0.2s}
+.cp-item:hover,.cp-item.active{background:rgba(255,255,255,0.05);border-color:rgba(255,255,255,0.15)}
+.cp-dot{width:10px;height:10px;border-radius:50%;flex-shrink:0;margin-top:4px}
+.cp-name{font-size:13px;font-weight:700;margin-bottom:3px}
+.cp-desc{font-size:11px;color:var(--muted);line-height:1.5}
+
+/* Green vs Red explanation */
+.candle-types{display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-top:20px}
+.candle-type-card{padding:16px;border-radius:14px;text-align:center}
+.ctc-green{background:rgba(0,255,136,0.06);border:1px solid rgba(0,255,136,0.2)}
+.ctc-red{background:rgba(255,71,87,0.06);border:1px solid rgba(255,71,87,0.2)}
+.ctc-title{font-size:13px;font-weight:700;margin-bottom:6px}
+.ctc-green .ctc-title{color:var(--green)}
+.ctc-red .ctc-title{color:var(--red)}
+.ctc-desc{font-size:11px;color:var(--muted);line-height:1.5}
+.mini-candle-wrap{display:flex;justify-content:center;margin-bottom:10px;height:60px;align-items:flex-end;gap:2px}
+.mini-wick{width:2px;border-radius:1px}
+.mini-body{width:16px;border-radius:3px}
+
+/* ── HOW TO USE ── */
+.how-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:16px}
+.how-card{background:rgba(255,255,255,0.025);border:1px solid var(--border);border-radius:14px;padding:20px;transition:all 0.2s;position:relative;overflow:hidden}
+.how-card::before{content:'';position:absolute;top:0;left:0;right:0;height:2px}
+.how-card:nth-child(1)::before{background:var(--blue)}
+.how-card:nth-child(2)::before{background:var(--green)}
+.how-card:nth-child(3)::before{background:var(--yellow)}
+.how-card:nth-child(4)::before{background:var(--purple)}
+.how-card:nth-child(5)::before{background:var(--green)}
+.how-card:nth-child(6)::before{background:var(--red)}
+.how-card:nth-child(7)::before{background:var(--green)}
+.how-card:hover{background:rgba(255,255,255,0.04);transform:translateY(-2px)}
+.how-step{font-size:10px;font-weight:800;color:var(--muted);letter-spacing:0.1em;text-transform:uppercase;margin-bottom:8px}
+.how-icon{font-size:24px;margin-bottom:8px;display:block}
+.how-title{font-size:14px;font-weight:700;margin-bottom:6px}
+.how-desc{font-size:12px;color:var(--muted);line-height:1.6}
+
+/* ── PATTERN LIBRARY ── */
+.lib-controls{display:flex;align-items:center;gap:12px;margin-bottom:20px;flex-wrap:wrap}
+.search-box{position:relative;flex:1;max-width:380px}
+.search-box input{width:100%;background:rgba(255,255,255,0.05);border:1px solid var(--border);border-radius:10px;padding:10px 14px 10px 38px;color:#fff;font-size:13px;font-family:'Plus Jakarta Sans',sans-serif;outline:none;transition:all 0.2s}
+.search-box input:focus{border-color:var(--green);background:rgba(0,255,136,0.04)}
+.search-box input::placeholder{color:var(--muted)}
+.search-icon{position:absolute;left:12px;top:50%;transform:translateY(-50%);color:var(--muted);font-size:14px;pointer-events:none}
+.filter-pills{display:flex;gap:6px;flex-wrap:wrap}
+.pill{padding:6px 14px;border-radius:20px;font-size:12px;font-weight:600;border:1px solid var(--border);background:transparent;color:var(--muted);cursor:pointer;transition:all 0.2s;font-family:'Plus Jakarta Sans',sans-serif;white-space:nowrap}
+.pill:hover{border-color:rgba(255,255,255,0.2);color:#fff}
+.pill.active-all{border-color:var(--blue);color:var(--blue);background:rgba(0,170,255,0.08)}
+.pill.active-bull{border-color:var(--green);color:var(--green);background:rgba(0,255,136,0.08)}
+.pill.active-bear{border-color:var(--red);color:var(--red);background:rgba(255,71,87,0.08)}
+.pill.active-neut{border-color:var(--yellow);color:var(--yellow);background:rgba(255,196,0,0.08)}
+.pill.active-cat{border-color:var(--purple);color:var(--purple);background:rgba(160,100,255,0.08)}
+
+.lib-stats{display:flex;gap:12px;margin-bottom:24px;flex-wrap:wrap}
+.lib-stat{background:rgba(255,255,255,0.03);border:1px solid var(--border);border-radius:10px;padding:10px 16px;display:flex;align-items:center;gap:8px}
+.lib-stat-num{font-size:18px;font-weight:800;font-family:'Fira Code',monospace}
+.lib-stat-label{font-size:11px;color:var(--muted);font-weight:600}
+
+.pattern-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:14px}
+.pcard{background:rgba(255,255,255,0.025);border:1px solid var(--border);border-radius:14px;padding:16px;cursor:pointer;transition:all 0.25s;position:relative;overflow:hidden}
+.pcard::before{content:'';position:absolute;left:0;top:0;bottom:0;width:3px}
+.pcard.bull::before{background:var(--green)}
+.pcard.bear::before{background:var(--red)}
+.pcard.neut::before{background:var(--yellow)}
+.pcard:hover{background:rgba(255,255,255,0.05);border-color:rgba(255,255,255,0.15);transform:translateY(-2px);box-shadow:0 8px 32px rgba(0,0,0,0.3)}
+.pcard-top{display:flex;align-items:center;gap:12px;margin-bottom:10px}
+.cv-group{display:flex;align-items:flex-end;justify-content:center;gap:4px;height:48px;min-width:52px;flex-shrink:0}
+.cv-candle{display:flex;flex-direction:column;align-items:center}
+.cv-wick{width:2px;border-radius:1px}
+.cv-body{width:12px;border-radius:2px;min-height:2px}
+.cv-bull .cv-wick,.cv-bull .cv-body{background:var(--green)}
+.cv-bear .cv-wick,.cv-bear .cv-body{background:var(--red)}
+.cv-neutral .cv-wick{background:var(--muted)}
+.cv-neutral .cv-body{background:var(--yellow)}
+.pcard-info{flex:1;min-width:0}
+.pcard-name{font-size:13px;font-weight:700;margin-bottom:4px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.pcard-badges{display:flex;gap:5px;flex-wrap:wrap}
+.badge{font-size:9px;font-weight:700;padding:2px 7px;border-radius:4px;text-transform:capitalize}
+.badge-bull{background:rgba(0,255,136,0.12);color:var(--green)}
+.badge-bear{background:rgba(255,71,87,0.12);color:var(--red)}
+.badge-neut{background:rgba(255,196,0,0.12);color:var(--yellow)}
+.badge-cat{background:rgba(255,255,255,0.06);color:var(--muted)}
+.pcard-desc{font-size:11px;color:var(--muted);line-height:1.5;margin-bottom:10px;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+.pcard-rel{display:flex;align-items:center;gap:8px}
+.rel-bar{flex:1;height:3px;background:rgba(255,255,255,0.06);border-radius:2px;overflow:hidden}
+.rel-fill{height:100%;border-radius:2px}
+.rel-fill-bull{background:var(--green)}
+.rel-fill-bear{background:var(--red)}
+.rel-fill-neut{background:var(--yellow)}
+.rel-num{font-size:10px;font-family:'Fira Code',monospace;color:var(--muted);flex-shrink:0}
+
+.empty-state{text-align:center;padding:60px 20px;color:var(--muted);font-size:14px}
+.empty-icon{font-size:40px;margin-bottom:12px;opacity:0.4}
+
+/* ── MODAL ── */
+.modal-bg{position:fixed;inset:0;background:rgba(0,0,0,0.75);z-index:300;display:none;align-items:center;justify-content:center;backdrop-filter:blur(8px);padding:20px}
+.modal-bg.open{display:flex}
+.modal{background:var(--bg2);border:1px solid var(--border);border-radius:20px;width:600px;max-width:100%;max-height:85vh;overflow-y:auto;position:relative;animation:modalIn 0.2s ease}
+@keyframes modalIn{from{opacity:0;transform:translateY(20px) scale(0.97)}to{opacity:1;transform:none}}
+.modal-head{padding:24px 24px 0;position:sticky;top:0;background:var(--bg2);z-index:1;border-bottom:1px solid var(--border);padding-bottom:16px}
+.modal-close{position:absolute;top:16px;right:16px;background:rgba(255,255,255,0.06);border:1px solid var(--border);border-radius:8px;color:var(--muted);font-size:14px;cursor:pointer;width:28px;height:28px;display:flex;align-items:center;justify-content:center;transition:all 0.2s}
+.modal-close:hover{background:rgba(255,71,87,0.15);color:var(--red);border-color:rgba(255,71,87,0.3)}
+.modal-body{padding:20px 24px 24px}
+.modal-visual{display:flex;justify-content:center;padding:24px;background:rgba(255,255,255,0.02);border:1px solid var(--border);border-radius:14px;margin-bottom:20px}
+.modal-visual .cv-group{height:80px}
+.modal-visual .cv-body{width:18px}
+.modal-visual .cv-wick{width:3px}
+.modal-title{font-size:22px;font-weight:800;margin-bottom:8px}
+.modal-badges-row{display:flex;gap:8px;align-items:center}
+.modal-sec{margin-bottom:18px}
+.modal-sec-title{font-size:10px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:0.1em;margin-bottom:8px;padding-bottom:6px;border-bottom:1px solid var(--border)}
+.modal-text{font-size:13px;color:rgba(255,255,255,0.8);line-height:1.7}
+.modal-trade-box{background:rgba(0,255,136,0.05);border:1px solid rgba(0,255,136,0.2);border-radius:10px;padding:12px 14px;font-size:12px;line-height:1.6;color:rgba(255,255,255,0.75)}
+.modal-trade-box.bear-trade{background:rgba(255,71,87,0.05);border-color:rgba(255,71,87,0.2)}
+.modal-rel-row{display:flex;align-items:center;gap:12px}
+.modal-rel-bar{flex:1;height:8px;background:rgba(255,255,255,0.06);border-radius:4px;overflow:hidden}
+.modal-rel-fill{height:100%;border-radius:4px;transition:width 0.6s ease}
+.modal-rel-pct{font-size:16px;font-weight:800;font-family:'Fira Code',monospace}
+
+/* ── QUICK REFERENCE TABLE ── */
+.ref-table{width:100%;border-collapse:collapse;font-size:12px}
+.ref-table th{background:rgba(255,255,255,0.04);padding:10px 12px;text-align:left;font-size:10px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:0.06em;border-bottom:1px solid var(--border)}
+.ref-table td{padding:10px 12px;border-bottom:1px solid rgba(255,255,255,0.04);color:rgba(255,255,255,0.75);vertical-align:middle}
+.ref-table tr:last-child td{border-bottom:none}
+.ref-table tr:hover td{background:rgba(255,255,255,0.02)}
+
+/* ── DIVIDER ── */
+.divider{height:1px;background:var(--border);margin:0 20px}
+
+/* ── SCROLL TO TOP ── */
+.scroll-top{position:fixed;bottom:24px;right:24px;width:40px;height:40px;background:rgba(0,255,136,0.1);border:1px solid rgba(0,255,136,0.3);border-radius:10px;display:flex;align-items:center;justify-content:center;cursor:pointer;font-size:16px;color:var(--green);transition:all 0.2s;z-index:50;opacity:0;transform:translateY(10px)}
+.scroll-top.visible{opacity:1;transform:none}
+.scroll-top:hover{background:rgba(0,255,136,0.2)}
+</style>
+{% include 'stocks/_navbar_styles.html' %}
+</head>
+<body>
+
+<!-- NAVBAR -->
+{% include 'stocks/_navbar.html' with active_page='candles' %}
+
+<!-- HERO -->
+<div class="hero">
+  <div class="hero-badge">📚 Complete Trading Education</div>
+  <h1 class="hero-title">Master <span>Candlestick</span><br>Patterns</h1>
+  <p class="hero-sub">From zero to expert — learn what every candle means, how to read them, and exactly how to trade each pattern profitably.</p>
+  <div class="hero-stats">
+    <div class="hero-stat"><div class="hero-stat-num g" id="statBull">0</div><div class="hero-stat-label">Bullish Patterns</div></div>
+    <div class="hero-stat"><div class="hero-stat-num r" id="statBear">0</div><div class="hero-stat-label">Bearish Patterns</div></div>
+    <div class="hero-stat"><div class="hero-stat-num b" id="statTotal">0</div><div class="hero-stat-label">Total Patterns</div></div>
+  </div>
+</div>
+
+<div class="divider"></div>
+
+<!-- SECTION 1: WHAT IS A CANDLESTICK -->
+<div class="section">
+  <div class="section-header">
+    <div class="section-tag">🕯 Foundation</div>
+    <h2 class="section-title">What is a Candlestick?</h2>
+    <p class="section-desc">A candlestick shows 4 key prices in one glance — Open, High, Low, Close. Click each part of the candle to learn what it means.</p>
+  </div>
+
+  <div class="candle-intro">
+    <!-- Interactive SVG Candle Diagram -->
+    <div class="candle-visual-wrap">
+      <div>
+        <svg class="candle-diagram" viewBox="0 0 260 300" xmlns="http://www.w3.org/2000/svg" id="candleSvg">
+          <!-- Background grid lines -->
+          <line x1="20" y1="40" x2="240" y2="40" stroke="rgba(255,255,255,0.06)" stroke-width="1" stroke-dasharray="4,4"/>
+          <line x1="20" y1="100" x2="240" y2="100" stroke="rgba(255,255,255,0.06)" stroke-width="1" stroke-dasharray="4,4"/>
+          <line x1="20" y1="190" x2="240" y2="190" stroke="rgba(255,255,255,0.06)" stroke-width="1" stroke-dasharray="4,4"/>
+          <line x1="20" y1="250" x2="240" y2="250" stroke="rgba(255,255,255,0.06)" stroke-width="1" stroke-dasharray="4,4"/>
+
+          <!-- Upper wick -->
+          <line id="svgUpperWick" x1="130" y1="40" x2="130" y2="100" stroke="#00ff88" stroke-width="3" stroke-linecap="round" class="svg-part" data-part="upper"/>
+          <!-- Body -->
+          <rect id="svgBody" x="100" y="100" width="60" height="90" rx="4" fill="#00ff88" class="svg-part" data-part="body" opacity="0.9"/>
+          <!-- Lower wick -->
+          <line id="svgLowerWick" x1="130" y1="190" x2="130" y2="250" stroke="#00ff88" stroke-width="3" stroke-linecap="round" class="svg-part" data-part="lower"/>
+
+          <!-- HIGH label -->
+          <text x="148" y="38" fill="rgba(255,255,255,0.5)" font-size="10" font-family="'Fira Code',monospace">HIGH</text>
+          <line x1="144" y1="40" x2="134" y2="40" stroke="rgba(255,255,255,0.3)" stroke-width="1"/>
+
+          <!-- OPEN label -->
+          <text x="168" y="104" fill="rgba(255,255,255,0.5)" font-size="10" font-family="'Fira Code',monospace">OPEN</text>
+          <line x1="164" y1="100" x2="160" y2="100" stroke="rgba(255,255,255,0.3)" stroke-width="1"/>
+
+          <!-- CLOSE label -->
+          <text x="168" y="193" fill="rgba(255,255,255,0.5)" font-size="10" font-family="'Fira Code',monospace">CLOSE</text>
+          <line x1="164" y1="190" x2="160" y2="190" stroke="rgba(255,255,255,0.3)" stroke-width="1"/>
+
+          <!-- LOW label -->
+          <text x="148" y="262" fill="rgba(255,255,255,0.5)" font-size="10" font-family="'Fira Code',monospace">LOW</text>
+          <line x1="144" y1="250" x2="134" y2="250" stroke="rgba(255,255,255,0.3)" stroke-width="1"/>
+
+          <!-- BODY label on left -->
+          <text x="50" y="148" fill="rgba(255,255,255,0.5)" font-size="10" font-family="'Fira Code',monospace" text-anchor="middle">BODY</text>
+          <line x1="68" y1="145" x2="100" y2="145" stroke="rgba(255,255,255,0.3)" stroke-width="1"/>
+
+          <!-- Upper shadow label -->
+          <text x="50" y="72" fill="rgba(255,255,255,0.5)" font-size="10" font-family="'Fira Code',monospace" text-anchor="middle">UPPER</text>
+          <text x="50" y="84" fill="rgba(255,255,255,0.5)" font-size="10" font-family="'Fira Code',monospace" text-anchor="middle">WICK</text>
+          <line x1="68" y1="70" x2="126" y2="70" stroke="rgba(255,255,255,0.3)" stroke-width="1"/>
+
+          <!-- Lower shadow label -->
+          <text x="50" y="218" fill="rgba(255,255,255,0.5)" font-size="10" font-family="'Fira Code',monospace" text-anchor="middle">LOWER</text>
+          <text x="50" y="230" fill="rgba(255,255,255,0.5)" font-size="10" font-family="'Fira Code',monospace" text-anchor="middle">WICK</text>
+          <line x1="68" y1="220" x2="126" y2="220" stroke="rgba(255,255,255,0.3)" stroke-width="1"/>
+
+          <!-- Highlight ring (hidden by default) -->
+          <rect id="svgHighlight" x="96" y="96" width="68" height="98" rx="6" fill="none" stroke="#ffc400" stroke-width="2" stroke-dasharray="4,3" opacity="0" class="highlight-ring"/>
+        </svg>
+
+        <!-- Green vs Red -->
+        <div class="candle-types">
+          <div class="candle-type-card ctc-green">
+            <div class="mini-candle-wrap">
+              <div style="display:flex;flex-direction:column;align-items:center">
+                <div class="mini-wick" style="height:12px;background:var(--green)"></div>
+                <div class="mini-body" style="height:36px;background:var(--green);border-radius:3px"></div>
+                <div class="mini-wick" style="height:8px;background:var(--green)"></div>
+              </div>
+            </div>
+            <div class="ctc-title">🟢 Green / Bullish</div>
+            <div class="ctc-desc">Close &gt; Open<br>Buyers won the session<br>Positive day</div>
+          </div>
+          <div class="candle-type-card ctc-red">
+            <div class="mini-candle-wrap">
+              <div style="display:flex;flex-direction:column;align-items:center">
+                <div class="mini-wick" style="height:8px;background:var(--red)"></div>
+                <div class="mini-body" style="height:36px;background:var(--red);border-radius:3px"></div>
+                <div class="mini-wick" style="height:12px;background:var(--red)"></div>
+              </div>
+            </div>
+            <div class="ctc-title">🔴 Red / Bearish</div>
+            <div class="ctc-desc">Close &lt; Open<br>Sellers won the session<br>Negative day</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Parts explanation -->
+    <div class="candle-parts" id="candleParts">
+      <div class="cp-item active" data-part="body" onclick="highlightPart('body')">
+        <div class="cp-dot" style="background:var(--green)"></div>
+        <div>
+          <div class="cp-name">Body</div>
+          <div class="cp-desc">The thick rectangle between Open and Close. <strong>Green body</strong> = Close above Open (bullish). <strong>Red body</strong> = Close below Open (bearish). A larger body shows stronger conviction.</div>
+        </div>
+      </div>
+      <div class="cp-item" data-part="upper" onclick="highlightPart('upper')">
+        <div class="cp-dot" style="background:var(--blue)"></div>
+        <div>
+          <div class="cp-name">Upper Wick / Shadow</div>
+          <div class="cp-desc">The thin line above the body reaching up to the <strong>HIGH</strong>. A long upper wick means sellers rejected higher prices — they pushed it down from the high.</div>
+        </div>
+      </div>
+      <div class="cp-item" data-part="lower" onclick="highlightPart('lower')">
+        <div class="cp-dot" style="background:var(--yellow)"></div>
+        <div>
+          <div class="cp-name">Lower Wick / Shadow</div>
+          <div class="cp-desc">The thin line below the body reaching down to the <strong>LOW</strong>. A long lower wick means buyers defended lower prices — they pushed it back up from the low.</div>
+        </div>
+      </div>
+      <div class="cp-item" data-part="open" onclick="highlightPart('open')">
+        <div class="cp-dot" style="background:#fff"></div>
+        <div>
+          <div class="cp-name">Open Price</div>
+          <div class="cp-desc">Where price <strong>started</strong> the time period. For a green candle, the open is the <em>bottom</em> of the body. For a red candle, the open is the <em>top</em> of the body.</div>
+        </div>
+      </div>
+      <div class="cp-item" data-part="close" onclick="highlightPart('close')">
+        <div class="cp-dot" style="background:var(--purple)"></div>
+        <div>
+          <div class="cp-name">Close Price</div>
+          <div class="cp-desc">Where price <strong>ended</strong> the time period. The most important price of the candle — it reflects the final verdict of buyers vs sellers for that session.</div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="divider"></div>
+
+<!-- SECTION 2: HOW TO USE IN TRADING -->
+<div class="section">
+  <div class="section-header">
+    <div class="section-tag">📈 Trading Guide</div>
+    <h2 class="section-title">How to Trade Candlestick Patterns</h2>
+    <p class="section-desc">A pattern alone is not enough. Follow these 7 steps for every trade to maximize win rate and manage risk properly.</p>
+  </div>
+  <div class="how-grid" id="howGrid"></div>
+</div>
+
+<div class="divider"></div>
+
+<!-- SECTION 3: PATTERN LIBRARY -->
+<div class="section">
+  <div class="section-header">
+    <div class="section-tag">📚 Pattern Library</div>
+    <h2 class="section-title">100+ Candlestick Patterns</h2>
+    <p class="section-desc">Every pattern includes a visual, description, reliability score, and exact trading instructions. Click any pattern to see full details.</p>
+  </div>
+
+  <div class="lib-controls">
+    <div class="search-box">
+      <span class="search-icon">🔍</span>
+      <input type="text" id="searchInput" placeholder="Search patterns... eg: Hammer, Engulfing" autocomplete="off">
+    </div>
+    <div class="filter-pills" id="filterPills">
+      <button class="pill active-all" onclick="setFilter('all',this,'active-all')">All</button>
+      <button class="pill" onclick="setFilter('single',this,'active-cat')">Single</button>
+      <button class="pill" onclick="setFilter('double',this,'active-cat')">Double</button>
+      <button class="pill" onclick="setFilter('triple',this,'active-cat')">Triple</button>
+      <button class="pill" onclick="setFilter('continuation',this,'active-cat')">Continuation</button>
+      <button class="pill" onclick="setFilter('chart',this,'active-cat')">Chart Patterns</button>
+      <button class="pill" onclick="setFilter('bullish',this,'active-bull')">🟢 Bullish</button>
+      <button class="pill" onclick="setFilter('bearish',this,'active-bear')">🔴 Bearish</button>
+      <button class="pill" onclick="setFilter('neutral',this,'active-neut')">🟡 Neutral</button>
+    </div>
+  </div>
+
+  <div class="lib-stats">
+    <div class="lib-stat"><span class="lib-stat-num" id="showTotal" style="color:var(--blue)">0</span><span class="lib-stat-label">Showing</span></div>
+    <div class="lib-stat"><span class="lib-stat-num" style="color:var(--green)" id="showBull">0</span><span class="lib-stat-label">Bullish</span></div>
+    <div class="lib-stat"><span class="lib-stat-num" style="color:var(--red)" id="showBear">0</span><span class="lib-stat-label">Bearish</span></div>
+    <div class="lib-stat"><span class="lib-stat-num" style="color:var(--yellow)" id="showNeut">0</span><span class="lib-stat-label">Neutral</span></div>
+  </div>
+
+  <div class="pattern-grid" id="patternGrid"></div>
+  <div class="empty-state" id="emptyState" style="display:none">
+    <div class="empty-icon">🔍</div>
+    <div>No patterns found. Try a different search.</div>
+  </div>
+</div>
+
+<!-- SECTION 4: QUICK REFERENCE -->
+<div class="section">
+  <div class="section-header">
+    <div class="section-tag">⚡ Quick Reference</div>
+    <h2 class="section-title">Top Patterns Cheat Sheet</h2>
+    <p class="section-desc">The most important patterns every trader must know — sorted by reliability.</p>
+  </div>
+  <div style="background:rgba(255,255,255,0.02);border:1px solid var(--border);border-radius:14px;overflow:hidden">
+    <table class="ref-table">
+      <thead>
+        <tr>
+          <th>Pattern</th>
+          <th>Type</th>
+          <th>Signal</th>
+          <th>Reliability</th>
+          <th>Best Used At</th>
+        </tr>
+      </thead>
+      <tbody id="refTableBody"></tbody>
+    </table>
+  </div>
+</div>
+
+<!-- MODAL -->
+<div class="modal-bg" id="modalBg" onclick="if(event.target===this)closeModal()">
+  <div class="modal">
+    <div class="modal-head" id="modalHead"></div>
+    <div class="modal-body" id="modalBody"></div>
+  </div>
+</div>
+
+<!-- Scroll to top -->
+<div class="scroll-top" id="scrollTop" onclick="window.scrollTo({top:0,behavior:'smooth'})">↑</div>
+
+<script src="{% static 'js/candle_patterns.js' %}"></script>
+<script>
+'use strict';
+
+let activeFilter = 'all';
+let searchTerm = '';
+
+// ── INIT ──────────────────────────────────────────────
+document.addEventListener('DOMContentLoaded', () => {
+  updateHeroStats();
+  renderHowToUse();
+  renderPatterns();
+  renderRefTable();
+
+  document.getElementById('searchInput').addEventListener('input', function() {
+    searchTerm = this.value.trim().toLowerCase();
+    renderPatterns();
+  });
+
+  window.addEventListener('scroll', () => {
+    const st = document.getElementById('scrollTop');
+    if (window.scrollY > 400) st.classList.add('visible');
+    else st.classList.remove('visible');
+  });
+});
+
+// ── HERO STATS ─────────────────────────────────────────
+function updateHeroStats() {
+  const bull = CANDLE_PATTERNS.filter(p => p.type === 'bullish').length;
+  const bear = CANDLE_PATTERNS.filter(p => p.type === 'bearish').length;
+  animNum('statBull', bull);
+  animNum('statBear', bear);
+  animNum('statTotal', CANDLE_PATTERNS.length);
+}
+
+function animNum(id, target) {
+  const el = document.getElementById(id);
+  if (!el) return;
+  let cur = 0;
+  const step = Math.ceil(target / 30);
+  const t = setInterval(() => {
+    cur = Math.min(cur + step, target);
+    el.textContent = cur;
+    if (cur >= target) clearInterval(t);
+  }, 30);
+}
+
+// ── HOW TO USE ─────────────────────────────────────────
+function renderHowToUse() {
+  const grid = document.getElementById('howGrid');
+  if (!grid || !CANDLE_EDUCATION) return;
+  grid.innerHTML = CANDLE_EDUCATION.howToUse.map(h => `
+    <div class="how-card">
+      <div class="how-step">Step ${h.step}</div>
+      <span class="how-icon">${h.icon}</span>
+      <div class="how-title">${h.title}</div>
+      <div class="how-desc">${h.desc}</div>
+    </div>
+  `).join('');
+}
+
+// ── CANDLE VISUAL ──────────────────────────────────────
+function buildVisual(candles, large) {
+  if (!candles || !candles.length) return '';
+  const scale = large ? 1.6 : 1;
+  return '<div class="cv-group">' + candles.map(c =>
+    `<div class="cv-candle cv-${c.t}">
+      <div class="cv-wick" style="height:${Math.round(c.uw*scale)}px"></div>
+      <div class="cv-body" style="height:${Math.max(2,Math.round(c.bh*scale))}px"></div>
+      <div class="cv-wick" style="height:${Math.round(c.lw*scale)}px"></div>
+    </div>`
+  ).join('') + '</div>';
+}
+
+// ── FILTER ────────────────────────────────────────────
+function setFilter(f, el, activeClass) {
+  activeFilter = f;
+  document.querySelectorAll('.pill').forEach(p => {
+    p.className = 'pill';
+  });
+  el.className = `pill ${activeClass}`;
+  renderPatterns();
+}
+
+function getFiltered() {
+  return CANDLE_PATTERNS.filter(p => {
+    const typeMatch = ['bullish','bearish','neutral'].includes(activeFilter)
+      ? p.type === activeFilter
+      : activeFilter === 'all' || p.cat === activeFilter;
+    const searchMatch = !searchTerm ||
+      p.n.toLowerCase().includes(searchTerm) ||
+      p.desc.toLowerCase().includes(searchTerm) ||
+      p.type.includes(searchTerm) ||
+      p.cat.includes(searchTerm);
+    return typeMatch && searchMatch;
+  });
+}
+
+// ── RENDER PATTERNS ────────────────────────────────────
+function renderPatterns() {
+  const items = getFiltered();
+  const grid = document.getElementById('patternGrid');
+  const empty = document.getElementById('emptyState');
+
+  document.getElementById('showTotal').textContent = items.length;
+  document.getElementById('showBull').textContent = items.filter(p=>p.type==='bullish').length;
+  document.getElementById('showBear').textContent = items.filter(p=>p.type==='bearish').length;
+  document.getElementById('showNeut').textContent = items.filter(p=>p.type==='neutral').length;
+
+  if (!items.length) {
+    grid.innerHTML = '';
+    empty.style.display = '';
+    return;
+  }
+  empty.style.display = 'none';
+
+  grid.innerHTML = items.map((p, i) => {
+    const cls = p.type === 'bullish' ? 'bull' : p.type === 'bearish' ? 'bear' : 'neut';
+    const badgeCls = `badge-${cls}`;
+    const relCls = `rel-fill-${cls}`;
+    return `
+      <div class="pcard ${cls}" onclick="openModal(${CANDLE_PATTERNS.indexOf(p)})">
+        <div class="pcard-top">
+          ${buildVisual(p.v)}
+          <div class="pcard-info">
+            <div class="pcard-name">${p.n}</div>
+            <div class="pcard-badges">
+              <span class="badge ${badgeCls}">${p.type}</span>
+              <span class="badge badge-cat">${p.cat}</span>
+            </div>
+          </div>
+        </div>
+        <div class="pcard-desc">${p.desc}</div>
+        <div class="pcard-rel">
+          <div class="rel-bar"><div class="${relCls} rel-fill" style="width:${p.rel}%"></div></div>
+          <span class="rel-num">${p.rel}%</span>
+        </div>
+      </div>
+    `;
+  }).join('');
+}
+
+// ── MODAL ─────────────────────────────────────────────
+function openModal(idx) {
+  const p = CANDLE_PATTERNS[idx];
+  if (!p) return;
+  const color = p.type === 'bullish' ? 'var(--green)' : p.type === 'bearish' ? 'var(--red)' : 'var(--yellow)';
+  const cls = p.type === 'bullish' ? 'bull' : p.type === 'bearish' ? 'bear' : 'neut';
+  const badgeCls = `badge-${cls}`;
+  const tradeCls = p.type === 'bearish' ? 'bear-trade' : '';
+
+  document.getElementById('modalHead').innerHTML = `
+    <button class="modal-close" onclick="closeModal()">✕</button>
+    <div class="modal-title">${p.n}</div>
+    <div class="modal-badges-row">
+      <span class="badge ${badgeCls}" style="font-size:11px;padding:3px 10px">${p.type}</span>
+      <span class="badge badge-cat" style="font-size:11px;padding:3px 10px">${p.cat}</span>
+    </div>
+  `;
+
+  document.getElementById('modalBody').innerHTML = `
+    <div class="modal-visual" style="margin-top:16px">${buildVisual(p.v, true)}</div>
+    <div class="modal-sec">
+      <div class="modal-sec-title">📖 What is this pattern?</div>
+      <div class="modal-text">${p.desc}</div>
+    </div>
+    <div class="modal-sec">
+      <div class="modal-sec-title">💡 What does it mean?</div>
+      <div class="modal-text">${p.meaning}</div>
+    </div>
+    <div class="modal-sec">
+      <div class="modal-sec-title">📈 When to use it?</div>
+      <div class="modal-text">${p.use}</div>
+    </div>
+    <div class="modal-sec">
+      <div class="modal-sec-title">🎯 How to trade it</div>
+      <div class="modal-trade-box ${tradeCls}">${p.trade}</div>
+    </div>
+    <div class="modal-sec">
+      <div class="modal-sec-title">📊 Reliability Score</div>
+      <div class="modal-rel-row">
+        <div class="modal-rel-bar">
+          <div class="modal-rel-fill" style="width:${p.rel}%;background:${color}"></div>
+        </div>
+        <div class="modal-rel-pct" style="color:${color}">${p.rel}%</div>
+      </div>
+      <div style="font-size:11px;color:var(--muted);margin-top:6px">
+        ${p.rel >= 85 ? '🔥 Very High reliability — strong signal' :
+          p.rel >= 70 ? '✅ High reliability — good signal' :
+          p.rel >= 60 ? '⚠️ Medium reliability — use with confirmation' :
+          '⚡ Lower reliability — always confirm with other indicators'}
+      </div>
+    </div>
+  `;
+
+  document.getElementById('modalBg').classList.add('open');
+  document.body.style.overflow = 'hidden';
+}
+
+function closeModal() {
+  document.getElementById('modalBg').classList.remove('open');
+  document.body.style.overflow = '';
+}
+
+document.addEventListener('keydown', e => { if (e.key === 'Escape') closeModal(); });
+
+// ── QUICK REFERENCE TABLE ──────────────────────────────
+function renderRefTable() {
+  const tbody = document.getElementById('refTableBody');
+  if (!tbody) return;
+
+  const top = [...CANDLE_PATTERNS]
+    .filter(p => p.rel >= 72)
+    .sort((a,b) => b.rel - a.rel)
+    .slice(0, 15);
+
+  tbody.innerHTML = top.map(p => {
+    const color = p.type === 'bullish' ? 'var(--green)' : p.type === 'bearish' ? 'var(--red)' : 'var(--yellow)';
+    const signal = p.type === 'bullish' ? '🟢 BUY' : p.type === 'bearish' ? '🔴 SELL' : '🟡 WAIT';
+    const locations = {
+      'single': 'At support/resistance',
+      'double': 'After a trend',
+      'triple': 'Major turning points',
+      'chart': 'Any timeframe',
+      'continuation': 'Mid-trend pullback',
+    };
+    return `
+      <tr onclick="openModal(${CANDLE_PATTERNS.indexOf(p)})" style="cursor:pointer">
+        <td style="font-weight:600">${buildVisual(p.v)} <span style="vertical-align:middle">${p.n}</span></td>
+        <td><span style="font-size:10px;text-transform:capitalize;color:var(--muted)">${p.cat}</span></td>
+        <td><span style="font-weight:700;color:${color}">${signal}</span></td>
+        <td>
+          <div style="display:flex;align-items:center;gap:8px">
+            <div style="flex:1;height:4px;background:rgba(255,255,255,0.06);border-radius:2px;overflow:hidden;max-width:80px">
+              <div style="height:100%;width:${p.rel}%;background:${color};border-radius:2px"></div>
+            </div>
+            <span style="font-family:'Fira Code',monospace;font-size:11px;color:${color}">${p.rel}%</span>
+          </div>
+        </td>
+        <td style="color:var(--muted);font-size:11px">${locations[p.cat] || 'Key levels'}</td>
+      </tr>
+    `;
+  }).join('');
+}
+
+// ── INTERACTIVE CANDLE SVG ─────────────────────────────
+function highlightPart(part) {
+  document.querySelectorAll('.cp-item').forEach(el => el.classList.remove('active'));
+  document.querySelector(`.cp-item[data-part="${part}"]`)?.classList.add('active');
+
+  const body = document.getElementById('svgBody');
+  const upper = document.getElementById('svgUpperWick');
+  const lower = document.getElementById('svgLowerWick');
+  const hl = document.getElementById('svgHighlight');
+
+  // Reset all
+  [body, upper, lower].forEach(el => { if(el) el.style.filter = 'brightness(0.4)'; });
+  hl.style.opacity = '0';
+
+  const colors = {
+    body: 'var(--green)', upper: 'var(--blue)',
+    lower: 'var(--yellow)', open: 'var(--green)', close: 'var(--purple)'
+  };
+
+  if (part === 'body' || part === 'open' || part === 'close') {
+    if(body) { body.style.filter = 'brightness(1.3) drop-shadow(0 0 8px rgba(0,255,136,0.6))'; }
+    hl.setAttribute('x', '96'); hl.setAttribute('y','96');
+    hl.setAttribute('width','68'); hl.setAttribute('height','98');
+    hl.style.opacity = '1';
+  } else if (part === 'upper') {
+    if(upper) { upper.style.filter = 'brightness(1.5) drop-shadow(0 0 6px rgba(0,170,255,0.8))'; upper.setAttribute('stroke','#00aaff'); }
+    hl.setAttribute('x','127'); hl.setAttribute('y','36');
+    hl.setAttribute('width','6'); hl.setAttribute('height','68');
+    hl.style.opacity = '1';
+  } else if (part === 'lower') {
+    if(lower) { lower.style.filter = 'brightness(1.5) drop-shadow(0 0 6px rgba(255,196,0,0.8))'; lower.setAttribute('stroke','#ffc400'); }
+    hl.setAttribute('x','127'); hl.setAttribute('y','186');
+    hl.setAttribute('width','6'); hl.setAttribute('height','68');
+    hl.style.opacity = '1';
+  }
+}
+
+// Initialize highlight
+highlightPart('body');
+</script>
+</body>
+</html>

@@ -1,0 +1,504 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Activity Log — StockAnalyzer Admin</title>
+    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&family=Fira+Code:wght@400;500;600&display=swap" rel="stylesheet">
+    <style>
+        *, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
+
+        :root {
+            --bg: #0a0e1a;
+            --green: #00ff88;
+            --blue: #00aaff;
+            --red: #ff4757;
+            --yellow: #ffc400;
+            --purple: #a855f7;
+            --muted: rgba(255,255,255,0.4);
+            --border: rgba(255,255,255,0.07);
+            --card: rgba(255,255,255,0.03);
+        }
+
+        body {
+            font-family: 'Plus Jakarta Sans', sans-serif;
+            background: var(--bg);
+            color: #fff;
+            min-height: 100vh;
+        }
+
+        .grid-bg {
+            position: fixed; inset: 0;
+            background-image:
+                linear-gradient(rgba(255,255,255,0.015) 1px, transparent 1px),
+                linear-gradient(90deg, rgba(255,255,255,0.015) 1px, transparent 1px);
+            background-size: 60px 60px;
+            pointer-events: none; z-index: 0;
+        }
+
+        .admin-main { margin-left: 240px; min-height: 100vh; position: relative; z-index: 1; }
+
+        /* ── TOPBAR ── */
+        .topbar {
+            padding: 20px 32px;
+            border-bottom: 1px solid var(--border);
+            display: flex; align-items: center; justify-content: space-between;
+            background: rgba(10,14,26,0.8);
+            backdrop-filter: blur(20px);
+            position: sticky; top: 0; z-index: 50;
+        }
+        .topbar-left h1 { font-size: 20px; font-weight: 700; }
+        .topbar-left p  { font-size: 13px; color: var(--muted); margin-top: 2px; }
+
+        .topbar-right { display: flex; align-items: center; gap: 12px; }
+
+        .ist-clock {
+            font-family: 'Fira Code', monospace; font-size: 13px; color: var(--green);
+            background: rgba(0,255,136,0.06); border: 1px solid rgba(0,255,136,0.12);
+            border-radius: 10px; padding: 8px 14px;
+        }
+
+        /* ── PAGE ── */
+        .page-content { padding: 28px 32px; }
+
+        /* ── STAT STRIP ── */
+        .stat-strip {
+            display: grid;
+            grid-template-columns: repeat(6, 1fr);
+            gap: 12px;
+            margin-bottom: 24px;
+        }
+
+        .stat-chip {
+            background: var(--card);
+            border: 1px solid var(--border);
+            border-radius: 14px;
+            padding: 14px 16px;
+            display: flex; flex-direction: column; gap: 6px;
+        }
+
+        .stat-chip-label {
+            font-size: 10px; color: var(--muted);
+            text-transform: uppercase; letter-spacing: 0.08em;
+        }
+
+        .stat-chip-val {
+            font-size: 22px; font-weight: 700;
+            font-family: 'Fira Code', monospace;
+        }
+
+        .val-white  { color: #fff; }
+        .val-green  { color: var(--green); }
+        .val-blue   { color: var(--blue); }
+        .val-yellow { color: var(--yellow); }
+        .val-red    { color: var(--red); }
+        .val-purple { color: var(--purple); }
+
+        /* ── FILTER BAR ── */
+        .filter-bar {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            margin-bottom: 20px;
+            flex-wrap: wrap;
+        }
+
+        .filter-btn {
+            padding: 7px 16px;
+            border-radius: 9px;
+            font-size: 12px; font-weight: 600;
+            border: 1px solid var(--border);
+            background: transparent;
+            color: var(--muted);
+            cursor: pointer;
+            font-family: 'Plus Jakarta Sans', sans-serif;
+            transition: all 0.15s;
+        }
+
+        .filter-btn:hover { color: #fff; border-color: rgba(255,255,255,0.15); }
+        .filter-btn.active { background: rgba(255,255,255,0.07); color: #fff; border-color: rgba(255,255,255,0.2); }
+        .filter-btn.f-login.active    { background: rgba(0,255,136,0.1);  color: var(--green);  border-color: rgba(0,255,136,0.25); }
+        .filter-btn.f-analyze.active  { background: rgba(0,170,255,0.1);  color: var(--blue);   border-color: rgba(0,170,255,0.25); }
+        .filter-btn.f-watchlist.active{ background: rgba(255,196,0,0.1);  color: var(--yellow); border-color: rgba(255,196,0,0.25); }
+        .filter-btn.f-register.active { background: rgba(168,85,247,0.1); color: var(--purple); border-color: rgba(168,85,247,0.25); }
+        .filter-btn.f-logout.active   { background: rgba(255,71,87,0.1);  color: var(--red);    border-color: rgba(255,71,87,0.25); }
+
+        .filter-count {
+            margin-left: auto;
+            font-size: 12px; color: var(--muted);
+            font-family: 'Fira Code', monospace;
+        }
+
+        /* ── PANEL ── */
+        .panel {
+            background: var(--card);
+            border: 1px solid var(--border);
+            border-radius: 16px;
+            overflow: hidden;
+        }
+
+        .panel-header {
+            display: flex; align-items: center; justify-content: space-between;
+            padding: 16px 20px;
+            border-bottom: 1px solid var(--border);
+        }
+
+        .panel-title { font-size: 14px; font-weight: 700; color: #fff; }
+        .panel-sub   { font-size: 12px; color: var(--muted); font-family: 'Fira Code', monospace; }
+
+        /* ── TABLE ── */
+        .data-table { width: 100%; border-collapse: collapse; }
+
+        .data-table th {
+            font-size: 11px; font-weight: 600; color: var(--muted);
+            text-transform: uppercase; letter-spacing: 0.08em;
+            padding: 10px 20px; text-align: left;
+            border-bottom: 1px solid var(--border);
+            background: rgba(255,255,255,0.02);
+        }
+
+        .data-table td {
+            padding: 13px 20px;
+            font-size: 13px;
+            color: rgba(255,255,255,0.65);
+            border-bottom: 1px solid rgba(255,255,255,0.04);
+            vertical-align: middle;
+        }
+
+        .data-table tr:last-child td { border-bottom: none; }
+        .data-table tr:hover td { background: rgba(255,255,255,0.02); }
+        .data-table.hidden { display: none; }
+
+        /* ── USER CELL ── */
+        .user-cell { display: flex; align-items: center; gap: 10px; }
+
+        .user-avatar {
+            width: 32px; height: 32px; border-radius: 50%;
+            background: linear-gradient(135deg, var(--green), var(--blue));
+            display: flex; align-items: center; justify-content: center;
+            font-size: 11px; font-weight: 700; color: #0a0e1a;
+            font-family: 'Fira Code', monospace; flex-shrink: 0;
+        }
+
+        .user-name  { font-weight: 600; color: #fff; font-size: 13px; }
+        .user-email { font-size: 11px; color: var(--muted); }
+
+        /* ── ACTION ICON ── */
+        .action-cell { display: flex; align-items: center; gap: 10px; }
+
+        .action-icon {
+            width: 34px; height: 34px; border-radius: 10px;
+            display: flex; align-items: center; justify-content: center;
+            font-size: 15px; flex-shrink: 0;
+        }
+
+        .icon-login    { background: rgba(0,255,136,0.08); }
+        .icon-logout   { background: rgba(255,71,87,0.08); }
+        .icon-analyze  { background: rgba(0,170,255,0.08); }
+        .icon-watchlist{ background: rgba(255,196,0,0.08); }
+        .icon-register { background: rgba(168,85,247,0.08); }
+
+        .action-name  { font-size: 13px; color: rgba(255,255,255,0.8); font-weight: 500; }
+        .action-detail{ font-size: 11px; color: var(--muted); margin-top: 1px; }
+
+        /* ── PILLS ── */
+        .action-pill {
+            display: inline-flex; align-items: center; gap: 5px;
+            padding: 3px 10px; border-radius: 6px;
+            font-size: 11px; font-weight: 700;
+        }
+
+        .pill-login    { background: rgba(0,255,136,0.1);  color: var(--green);  }
+        .pill-logout   { background: rgba(255,71,87,0.1);  color: var(--red);    }
+        .pill-analyze  { background: rgba(0,170,255,0.1);  color: var(--blue);   }
+        .pill-wladd    { background: rgba(255,196,0,0.1);  color: var(--yellow); }
+        .pill-wlremove { background: rgba(255,196,0,0.06); color: var(--yellow); border: 1px solid rgba(255,196,0,0.15); }
+        .pill-register { background: rgba(168,85,247,0.1); color: var(--purple); }
+
+        .mono { font-family: 'Fira Code', monospace; font-size: 11px; }
+
+        /* ── LIVE BADGE ── */
+        .live-badge {
+            display: inline-flex; align-items: center; gap: 6px;
+            padding: 4px 12px; border-radius: 20px;
+            background: rgba(0,255,136,0.06);
+            border: 1px solid rgba(0,255,136,0.15);
+            font-size: 12px; color: var(--green); font-weight: 600;
+        }
+
+        .live-dot {
+            width: 6px; height: 6px; border-radius: 50%;
+            background: var(--green);
+            animation: livePulse 2s ease-in-out infinite;
+        }
+
+        @keyframes livePulse { 0%,100%{opacity:1;transform:scale(1)} 50%{opacity:0.4;transform:scale(0.7)} }
+
+        /* ── EMPTY ── */
+        .empty-state {
+            text-align: center; padding: 60px 20px;
+            color: var(--muted); font-size: 14px;
+        }
+        .empty-icon { font-size: 40px; margin-bottom: 12px; }
+        .empty-title { font-size: 16px; font-weight: 600; color: rgba(255,255,255,0.4); margin-bottom: 6px; }
+
+        /* ── RESPONSIVE ── */
+        @media (max-width: 1200px) { .stat-strip { grid-template-columns: repeat(3,1fr); } }
+        @media (max-width: 900px) {
+            .admin-main { margin-left: 0; }
+            .page-content { padding: 20px 16px; }
+            .stat-strip { grid-template-columns: repeat(2,1fr); }
+        }
+    </style>
+</head>
+<body>
+<div class="grid-bg"></div>
+
+{% include 'stocks/admin_sidebar.html' %}
+
+<div class="admin-main">
+
+    <!-- TOPBAR -->
+    <div class="topbar">
+        <div class="topbar-left">
+            <h1>📋 Activity Log</h1>
+            <p>Every user action tracked in real time</p>
+        </div>
+        <div class="topbar-right">
+            <div class="live-badge"><div class="live-dot"></div>Live</div>
+            <div class="ist-clock" id="topClock">--:-- --</div>
+        </div>
+    </div>
+
+    <div class="page-content">
+
+        <!-- STAT STRIP -->
+        <div class="stat-strip">
+            <div class="stat-chip">
+                <div class="stat-chip-label">Total Events</div>
+                <div class="stat-chip-val val-white">{{ activities|length }}</div>
+            </div>
+            <div class="stat-chip">
+                <div class="stat-chip-label">Logins</div>
+                <div class="stat-chip-val val-green" id="countLogin">0</div>
+            </div>
+            <div class="stat-chip">
+                <div class="stat-chip-label">Analyses</div>
+                <div class="stat-chip-val val-blue" id="countAnalyze">0</div>
+            </div>
+            <div class="stat-chip">
+                <div class="stat-chip-label">Watchlist</div>
+                <div class="stat-chip-val val-yellow" id="countWatchlist">0</div>
+            </div>
+            <div class="stat-chip">
+                <div class="stat-chip-label">Registers</div>
+                <div class="stat-chip-val val-purple" id="countRegister">0</div>
+            </div>
+            <div class="stat-chip">
+                <div class="stat-chip-label">Logouts</div>
+                <div class="stat-chip-val val-red" id="countLogout">0</div>
+            </div>
+        </div>
+
+        <!-- FILTER BAR -->
+        <div class="filter-bar">
+            <button class="filter-btn active" data-filter="all" onclick="filterTable('all', this)">All</button>
+            <button class="filter-btn f-login"     data-filter="login"    onclick="filterTable('login', this)">🔑 Login</button>
+            <button class="filter-btn f-analyze"   data-filter="analyze"  onclick="filterTable('analyze', this)">📊 Analyze</button>
+            <button class="filter-btn f-watchlist" data-filter="watchlist" onclick="filterTable('watchlist', this)">⭐ Watchlist</button>
+            <button class="filter-btn f-register"  data-filter="register" onclick="filterTable('register', this)">👤 Register</button>
+            <button class="filter-btn f-logout"    data-filter="logout"   onclick="filterTable('logout', this)">🚪 Logout</button>
+            <div class="filter-count" id="filterCount">{{ activities|length }} events</div>
+        </div>
+
+        <!-- TABLE -->
+        <div class="panel">
+            <div class="panel-header">
+                <div class="panel-title">📋 All Activity</div>
+                <div class="panel-sub" id="tableCount">{{ activities|length }} total</div>
+            </div>
+
+            {% if activities %}
+            <table class="data-table" id="activityTable">
+                <thead>
+                    <tr>
+                        <th>User</th>
+                        <th>Action</th>
+                        <th>Type</th>
+                        <th>Detail</th>
+                        <th>IP Address</th>
+                        <th>Time</th>
+                    </tr>
+                </thead>
+                <tbody id="activityBody">
+                    {% for act in activities %}
+                    <tr data-action="{{ act.action }}">
+
+                        <!-- User -->
+                        <td>
+                            <div class="user-cell">
+                                <div class="user-avatar">
+                                    {{ act.user.first_name|first|upper }}{{ act.user.last_name|first|upper }}
+                                </div>
+                                <div>
+                                    <div class="user-name">{{ act.user.username }}</div>
+                                    <div class="user-email">{{ act.user.email }}</div>
+                                </div>
+                            </div>
+                        </td>
+
+                        <!-- Action with icon -->
+                        <td>
+                            <div class="action-cell">
+                                <div class="action-icon
+                                    {% if act.action == 'login' %}icon-login
+                                    {% elif act.action == 'logout' %}icon-logout
+                                    {% elif act.action == 'analyze' %}icon-analyze
+                                    {% elif 'watchlist' in act.action %}icon-watchlist
+                                    {% elif act.action == 'register' %}icon-register
+                                    {% else %}icon-analyze{% endif %}">
+                                    {% if act.action == 'login' %}🔑
+                                    {% elif act.action == 'logout' %}🚪
+                                    {% elif act.action == 'analyze' %}📊
+                                    {% elif act.action == 'watchlist_add' %}➕
+                                    {% elif act.action == 'watchlist_remove' %}➖
+                                    {% elif act.action == 'register' %}👤
+                                    {% else %}⚡{% endif %}
+                                </div>
+                                <div>
+                                    <div class="action-name">{{ act.get_action_display }}</div>
+                                </div>
+                            </div>
+                        </td>
+
+                        <!-- Type pill -->
+                        <td>
+                            {% if act.action == 'login' %}
+                                <span class="action-pill pill-login">🔑 Login</span>
+                            {% elif act.action == 'logout' %}
+                                <span class="action-pill pill-logout">🚪 Logout</span>
+                            {% elif act.action == 'analyze' %}
+                                <span class="action-pill pill-analyze">📊 Analyze</span>
+                            {% elif act.action == 'watchlist_add' %}
+                                <span class="action-pill pill-wladd">➕ WL Add</span>
+                            {% elif act.action == 'watchlist_remove' %}
+                                <span class="action-pill pill-wlremove">➖ WL Remove</span>
+                            {% elif act.action == 'register' %}
+                                <span class="action-pill pill-register">👤 Register</span>
+                            {% else %}
+                                <span class="action-pill" style="background:rgba(255,255,255,0.06);color:var(--muted);">{{ act.action }}</span>
+                            {% endif %}
+                        </td>
+
+                        <!-- Detail -->
+                        <td>
+                            {% if act.detail %}
+                                <span class="mono" style="color:rgba(255,255,255,0.7);">{{ act.detail }}</span>
+                            {% else %}
+                                <span style="color:rgba(255,255,255,0.2);">—</span>
+                            {% endif %}
+                        </td>
+
+                        <!-- IP -->
+                        <td>
+                            {% if act.ip_address %}
+                                <span class="mono" style="color:rgba(255,255,255,0.3);">{{ act.ip_address }}</span>
+                            {% else %}
+                                <span style="color:rgba(255,255,255,0.15);">—</span>
+                            {% endif %}
+                        </td>
+
+                        <!-- Time -->
+                        <td>
+                            <div class="mono" style="color:rgba(255,255,255,0.5);">{{ act.timestamp|date:"d M Y" }}</div>
+                            <div class="mono" style="color:rgba(255,255,255,0.25);margin-top:2px;">{{ act.timestamp|date:"H:i:s" }}</div>
+                        </td>
+
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+
+            {% else %}
+            <div class="empty-state">
+                <div class="empty-icon">📋</div>
+                <div class="empty-title">No activity recorded yet</div>
+                Users need to login and use the app first.
+            </div>
+            {% endif %}
+        </div>
+
+    </div>
+</div>
+
+<script>
+// ── CLOCK ──
+function updateClock() {
+    const now = new Date();
+    const ist = new Date(now.toLocaleString('en-US', { timeZone: 'Asia/Kolkata' }));
+    const h = ist.getHours();
+    const m = String(ist.getMinutes()).padStart(2, '0');
+    const s = String(ist.getSeconds()).padStart(2, '0');
+    const ampm = h >= 12 ? 'PM' : 'AM';
+    const h12 = h % 12 || 12;
+    const el = document.getElementById('topClock');
+    if (el) el.textContent = `${h12}:${m}:${s} ${ampm} IST`;
+}
+updateClock();
+setInterval(updateClock, 1000);
+
+// ── COUNT STATS FROM ROWS ──
+function countStats() {
+    const rows = document.querySelectorAll('#activityBody tr');
+    let counts = { login: 0, logout: 0, analyze: 0, watchlist: 0, register: 0 };
+
+    rows.forEach(row => {
+        const a = row.dataset.action;
+        if (a === 'login')    counts.login++;
+        else if (a === 'logout')   counts.logout++;
+        else if (a === 'analyze')  counts.analyze++;
+        else if (a === 'watchlist_add' || a === 'watchlist_remove') counts.watchlist++;
+        else if (a === 'register') counts.register++;
+    });
+
+    document.getElementById('countLogin').textContent    = counts.login;
+    document.getElementById('countAnalyze').textContent  = counts.analyze;
+    document.getElementById('countWatchlist').textContent= counts.watchlist;
+    document.getElementById('countRegister').textContent = counts.register;
+    document.getElementById('countLogout').textContent   = counts.logout;
+}
+
+// ── FILTER ──
+function filterTable(type, btn) {
+    // Update active button
+    document.querySelectorAll('.filter-btn').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+
+    const rows = document.querySelectorAll('#activityBody tr');
+    let visible = 0;
+
+    rows.forEach(row => {
+        const action = row.dataset.action;
+        let show = false;
+
+        if (type === 'all') {
+            show = true;
+        } else if (type === 'watchlist') {
+            show = action === 'watchlist_add' || action === 'watchlist_remove';
+        } else {
+            show = action === type;
+        }
+
+        row.style.display = show ? '' : 'none';
+        if (show) visible++;
+    });
+
+    document.getElementById('filterCount').textContent = visible + ' events';
+    document.getElementById('tableCount').textContent  = visible + ' total';
+}
+
+// ── INIT ──
+countStats();
+</script>
+</body>
+</html>

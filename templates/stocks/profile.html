@@ -1,0 +1,419 @@
+<!DOCTYPE html>
+{% load static %}
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Profile — StockAnalyzer</title>
+<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&family=Fira+Code:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+*,*::before,*::after{margin:0;padding:0;box-sizing:border-box}
+:root{
+  --bg:#0a0e1a;--bg2:#0d1224;--bg3:#111827;
+  --green:#00ff88;--blue:#00aaff;--red:#ff4757;--yellow:#ffc400;--purple:#a064ff;
+  --border:rgba(255,255,255,0.07);--muted:rgba(255,255,255,0.4);--text:#fff;--nav-h:56px;
+}
+html,body{min-height:100%;background:var(--bg);color:var(--text);font-family:'Plus Jakarta Sans',sans-serif}
+::-webkit-scrollbar{width:4px}::-webkit-scrollbar-thumb{background:rgba(255,255,255,0.1);border-radius:4px}
+
+/* NAVBAR */
+.navbar{height:var(--nav-h);background:rgba(10,14,26,0.98);border-bottom:1px solid var(--border);display:flex;align-items:center;padding:0 20px;gap:12px;position:sticky;top:0;z-index:100;backdrop-filter:blur(20px)}
+.nav-logo{display:flex;align-items:center;gap:8px;text-decoration:none}
+.nav-logo-icon{width:32px;height:32px;background:linear-gradient(135deg,var(--green),var(--blue));border-radius:8px;display:flex;align-items:center;justify-content:center;font-size:16px}
+.nav-logo-text{font-size:15px;font-weight:700;color:#fff}.nav-logo-text span{color:var(--green)}
+.nav-actions{display:flex;align-items:center;gap:6px;margin-left:auto}
+.nav-btn{display:flex;align-items:center;gap:5px;padding:6px 12px;background:transparent;border:1px solid var(--border);border-radius:8px;color:var(--muted);font-size:12px;font-weight:600;font-family:'Plus Jakarta Sans',sans-serif;cursor:pointer;text-decoration:none;transition:all 0.2s}
+.nav-btn:hover{border-color:rgba(255,255,255,0.2);color:#fff}
+.nav-btn.active{border-color:rgba(0,255,136,0.4);color:var(--green);background:rgba(0,255,136,0.06)}
+
+.page{max-width:1100px;margin:0 auto;padding:32px 20px 80px}
+
+/* SUCCESS */
+.success-msg{background:rgba(0,255,136,0.08);border:1px solid rgba(0,255,136,0.2);border-radius:10px;padding:12px 16px;margin-bottom:24px;font-size:13px;color:var(--green);display:flex;align-items:center;gap:8px;animation:fadeIn 0.3s ease}
+@keyframes fadeIn{from{opacity:0;transform:translateY(-8px)}to{opacity:1;transform:none}}
+
+/* HERO */
+.profile-hero{position:relative;background:linear-gradient(135deg,rgba(0,255,136,0.05),rgba(0,170,255,0.05));border:1px solid var(--border);border-radius:24px;padding:36px 36px 28px;margin-bottom:24px;overflow:hidden}
+.hero-bg-glow{position:absolute;top:-60px;right:-60px;width:280px;height:280px;background:radial-gradient(circle,rgba(0,255,136,0.08),transparent 70%);pointer-events:none}
+.hero-bg-glow2{position:absolute;bottom:-80px;left:-40px;width:200px;height:200px;background:radial-gradient(circle,rgba(0,170,255,0.06),transparent 70%);pointer-events:none}
+.hero-top{display:flex;align-items:center;gap:24px;margin-bottom:24px}
+.avatar-xl{width:88px;height:88px;background:linear-gradient(135deg,var(--green),var(--blue));border-radius:20px;display:flex;align-items:center;justify-content:center;font-size:30px;font-weight:800;color:#0a0e1a;flex-shrink:0;box-shadow:0 0 40px rgba(0,255,136,0.2)}
+.hero-info{flex:1;min-width:0}
+.hero-name{font-size:26px;font-weight:800;margin-bottom:4px;letter-spacing:-0.02em}
+.hero-username{font-size:13px;color:var(--muted);margin-bottom:10px;font-family:'Fira Code',monospace}
+.hero-badges{display:flex;gap:7px;flex-wrap:wrap}
+.hbadge{font-size:10px;font-weight:700;padding:4px 11px;border-radius:20px;text-transform:uppercase;letter-spacing:0.05em}
+.hb-exp{background:rgba(160,100,255,0.12);color:var(--purple);border:1px solid rgba(160,100,255,0.2)}
+.hb-trade{background:rgba(0,170,255,0.12);color:var(--blue);border:1px solid rgba(0,170,255,0.2)}
+.hb-member{background:rgba(255,255,255,0.05);color:var(--muted);border:1px solid var(--border)}
+.hero-actions{display:flex;gap:10px;margin-top:0}
+.edit-btn{padding:9px 18px;background:rgba(0,255,136,0.1);border:1px solid rgba(0,255,136,0.25);border-radius:10px;color:var(--green);font-size:12px;font-weight:700;cursor:pointer;font-family:'Plus Jakarta Sans',sans-serif;transition:all 0.2s;display:flex;align-items:center;gap:6px}
+.edit-btn:hover{background:rgba(0,255,136,0.2);transform:translateY(-1px)}
+
+/* Signal breakdown in hero */
+.hero-signal-row{display:flex;gap:12px;flex-wrap:wrap}
+.hsr-item{flex:1;min-width:100px;background:rgba(255,255,255,0.03);border:1px solid var(--border);border-radius:10px;padding:10px 14px;text-align:center}
+.hsr-num{font-size:20px;font-weight:800;font-family:'Fira Code',monospace;margin-bottom:2px}
+.hsr-label{font-size:9px;color:var(--muted);font-weight:600;text-transform:uppercase;letter-spacing:0.06em}
+.hsr-bar{height:3px;border-radius:2px;margin-top:6px}
+
+/* STATS */
+.stats-row{display:grid;grid-template-columns:repeat(4,1fr);gap:14px;margin-bottom:24px}
+@media(max-width:700px){.stats-row{grid-template-columns:repeat(2,1fr)}}
+.stat-card{background:rgba(255,255,255,0.025);border:1px solid var(--border);border-radius:14px;padding:20px 16px;text-align:center;transition:all 0.2s;cursor:default;position:relative;overflow:hidden}
+.stat-card::before{content:'';position:absolute;bottom:0;left:0;right:0;height:2px}
+.stat-card:nth-child(1)::before{background:var(--green)}
+.stat-card:nth-child(2)::before{background:var(--blue)}
+.stat-card:nth-child(3)::before{background:var(--yellow)}
+.stat-card:nth-child(4)::before{background:var(--purple)}
+.stat-card:hover{background:rgba(255,255,255,0.04);transform:translateY(-3px);box-shadow:0 8px 32px rgba(0,0,0,0.3)}
+.stat-icon{font-size:24px;margin-bottom:10px;display:block}
+.stat-num{font-size:28px;font-weight:800;font-family:'Fira Code',monospace;margin-bottom:3px;display:block}
+.g{color:var(--green)}.b{color:var(--blue)}.y{color:var(--yellow)}.p{color:var(--purple)}
+.stat-label{font-size:10px;color:var(--muted);font-weight:600;text-transform:uppercase;letter-spacing:0.06em}
+
+/* GRID */
+.content-grid{display:grid;grid-template-columns:1fr 1fr;gap:20px}
+@media(max-width:800px){.content-grid{grid-template-columns:1fr}}
+.card{background:rgba(255,255,255,0.025);border:1px solid var(--border);border-radius:14px;overflow:hidden}
+.card-head{padding:14px 18px;border-bottom:1px solid var(--border);font-size:11px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:0.08em;display:flex;align-items:center;justify-content:space-between}
+.card-body{padding:16px 18px}
+.card-link{font-size:10px;color:var(--blue);text-decoration:none;font-weight:600}
+.card-link:hover{color:#fff}
+
+/* INFO ROWS */
+.info-row{display:flex;justify-content:space-between;align-items:center;padding:10px 0;border-bottom:1px solid rgba(255,255,255,0.04)}
+.info-row:last-child{border-bottom:none}
+.info-label{font-size:12px;color:var(--muted);font-weight:600}
+.info-val{font-size:12px;font-weight:600;font-family:'Fira Code',monospace;color:rgba(255,255,255,0.85)}
+
+/* TOP STOCKS */
+.top-stock{display:flex;align-items:center;gap:10px;padding:10px 0;border-bottom:1px solid rgba(255,255,255,0.04);cursor:pointer;transition:all 0.15s}
+.top-stock:last-child{border-bottom:none}
+.top-stock:hover{padding-left:4px}
+.ts-rank{width:24px;height:24px;border-radius:6px;display:flex;align-items:center;justify-content:center;font-size:10px;font-weight:800;flex-shrink:0}
+.ts-rank.gold{background:rgba(255,196,0,0.15);color:var(--yellow)}
+.ts-rank.silver{background:rgba(160,160,160,0.15);color:#b0b0b0}
+.ts-rank.bronze{background:rgba(205,127,50,0.15);color:#cd7f32}
+.ts-rank.other{background:rgba(255,255,255,0.06);color:var(--muted)}
+.ts-sym{font-family:'Fira Code',monospace;font-size:13px;font-weight:700;flex:1}
+.ts-bar-wrap{width:80px;height:4px;background:rgba(255,255,255,0.06);border-radius:2px;overflow:hidden}
+.ts-bar{height:100%;background:var(--green);border-radius:2px}
+.ts-count{font-size:11px;color:var(--muted);font-family:'Fira Code',monospace;margin-left:8px;flex-shrink:0}
+
+/* SIGNALS */
+.sig-item{display:flex;align-items:center;gap:10px;padding:9px 0;border-bottom:1px solid rgba(255,255,255,0.04);font-size:12px}
+.sig-item:last-child{border-bottom:none}
+.sig-sym{font-family:'Fira Code',monospace;font-weight:700;width:84px;flex-shrink:0}
+.sig-badge{font-size:9px;font-weight:700;padding:2px 7px;border-radius:4px;flex-shrink:0}
+.sig-buy{background:rgba(0,255,136,0.15);color:var(--green)}
+.sig-sell{background:rgba(255,71,87,0.15);color:var(--red)}
+.sig-wait{background:rgba(255,196,0,0.15);color:var(--yellow)}
+.sig-type{font-size:10px;color:var(--muted);flex:1;text-transform:capitalize}
+.sig-time{font-size:10px;color:var(--muted);font-family:'Fira Code',monospace;flex-shrink:0}
+
+/* ACTIVITY */
+.act-item{display:flex;align-items:center;gap:10px;padding:8px 0;border-bottom:1px solid rgba(255,255,255,0.04);font-size:12px}
+.act-item:last-child{border-bottom:none}
+.act-dot{width:6px;height:6px;border-radius:50%;flex-shrink:0}
+.act-text{flex:1;color:rgba(255,255,255,0.65);line-height:1.4}
+.act-time{font-size:10px;color:var(--muted);font-family:'Fira Code',monospace;flex-shrink:0}
+
+/* WATCHLIST CHIPS */
+.wl-chips{display:flex;flex-wrap:wrap;gap:6px}
+.wl-chip{background:rgba(255,255,255,0.04);border:1px solid var(--border);border-radius:7px;padding:5px 10px;font-size:11px;font-family:'Fira Code',monospace;font-weight:600;color:rgba(255,255,255,0.7);cursor:pointer;transition:all 0.15s;text-decoration:none;display:inline-block}
+.wl-chip:hover{border-color:var(--green);color:var(--green);background:rgba(0,255,136,0.06)}
+
+/* EMPTY */
+.empty-msg{padding:20px 0;text-align:center;color:var(--muted);font-size:13px;font-style:italic}
+
+/* MODAL */
+.modal-bg{position:fixed;inset:0;background:rgba(0,0,0,0.75);z-index:300;display:none;align-items:center;justify-content:center;backdrop-filter:blur(6px);padding:20px}
+.modal-bg.open{display:flex}
+.modal{background:var(--bg2);border:1px solid var(--border);border-radius:20px;width:500px;max-width:100%;max-height:88vh;overflow-y:auto;animation:modalIn 0.2s ease}
+@keyframes modalIn{from{opacity:0;transform:translateY(16px) scale(0.97)}to{opacity:1;transform:none}}
+.modal-head{padding:22px 22px 0;display:flex;justify-content:space-between;align-items:center;margin-bottom:20px}
+.modal-title{font-size:17px;font-weight:800}
+.modal-close{background:rgba(255,255,255,0.06);border:1px solid var(--border);border-radius:8px;color:var(--muted);font-size:14px;cursor:pointer;width:28px;height:28px;display:flex;align-items:center;justify-content:center;transition:all 0.2s}
+.modal-close:hover{background:rgba(255,71,87,0.15);color:var(--red)}
+.modal-body{padding:0 22px 22px}
+.form-group{margin-bottom:16px}
+.form-label{display:block;font-size:10px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:0.07em;margin-bottom:6px}
+.form-input,.form-select{width:100%;background:rgba(255,255,255,0.05);border:1px solid var(--border);border-radius:9px;padding:10px 13px;color:#fff;font-size:13px;font-family:'Plus Jakarta Sans',sans-serif;outline:none;transition:all 0.2s}
+.form-input:focus,.form-select:focus{border-color:var(--green);background:rgba(0,255,136,0.04)}
+.form-select option{background:var(--bg2)}
+.form-row{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+.form-section-title{font-size:10px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:0.08em;padding:12px 0 8px;border-top:1px solid var(--border);margin-top:4px}
+.save-btn{width:100%;padding:13px;background:linear-gradient(135deg,var(--green),var(--blue));border:none;border-radius:10px;color:#0a0e1a;font-size:14px;font-weight:800;cursor:pointer;font-family:'Plus Jakarta Sans',sans-serif;transition:all 0.2s;margin-top:8px}
+.save-btn:hover{opacity:0.9;transform:translateY(-1px);box-shadow:0 6px 24px rgba(0,255,136,0.25)}
+</style>
+</head>
+<body>
+
+<nav class="navbar">
+  <a href="{% url 'dashboard' %}" class="nav-logo">
+    <div class="nav-logo-icon">📈</div>
+    <div class="nav-logo-text">Stock<span>Analyzer</span></div>
+  </a>
+  <div class="nav-actions">
+    <a href="{% url 'dashboard' %}" class="nav-btn">📊 Dashboard</a>
+    <a href="{% url 'news' %}" class="nav-btn">📰 News</a>
+    <a href="{% url 'screener' %}" class="nav-btn">🔍 Screener</a>
+    <a href="{% url 'candles' %}" class="nav-btn">🕯 Candles</a>
+    <a href="{% url 'profile' %}" class="nav-btn active">👤 Profile</a>
+    <a href="{% url 'logout' %}" class="nav-btn">↩ Logout</a>
+  </div>
+</nav>
+
+<div class="page">
+
+  {% if request.GET.saved %}
+  <div class="success-msg">✅ Profile updated successfully!</div>
+  {% endif %}
+
+  <!-- HERO -->
+  <div class="profile-hero">
+    <div class="hero-bg-glow"></div>
+    <div class="hero-bg-glow2"></div>
+    <div class="hero-top">
+      <div class="avatar-xl">{{ profile.avatar_initials|default:user.username|truncatechars:2|upper }}</div>
+      <div class="hero-info">
+        <div class="hero-name">
+          {% if user.first_name %}{{ user.first_name }} {{ user.last_name }}{% else %}{{ user.username }}{% endif %}
+        </div>
+        <div class="hero-username">@{{ user.username }} · {{ user.email|default:"No email" }}</div>
+        <div class="hero-badges">
+          {% if profile %}
+          <span class="hbadge hb-exp">{{ profile.get_trading_experience_display }}</span>
+          <span class="hbadge hb-trade">{{ profile.get_preferred_trade_type_display }}</span>
+          {% endif %}
+          <span class="hbadge hb-member">Since {{ user.date_joined|date:"M Y" }}</span>
+        </div>
+      </div>
+      <div class="hero-actions">
+        <button class="edit-btn" onclick="openEditModal()">✏️ Edit Profile</button>
+      </div>
+    </div>
+
+    <!-- Signal Breakdown Bar -->
+    <div class="hero-signal-row">
+      <div class="hsr-item">
+        <div class="hsr-num" style="color:var(--green)">{{ buy_signals }}</div>
+        <div class="hsr-label">Buy Signals</div>
+        <div class="hsr-bar" style="background:var(--green);width:{% if total_signals %}{% widthratio buy_signals total_signals 100 %}{% else %}0{% endif %}%"></div>
+      </div>
+      <div class="hsr-item">
+        <div class="hsr-num" style="color:var(--red)">{{ sell_signals }}</div>
+        <div class="hsr-label">Sell Signals</div>
+        <div class="hsr-bar" style="background:var(--red);width:{% if total_signals %}{% widthratio sell_signals total_signals 100 %}{% else %}0{% endif %}%"></div>
+      </div>
+      <div class="hsr-item">
+        <div class="hsr-num" style="color:var(--yellow)">{{ wait_signals }}</div>
+        <div class="hsr-label">Wait Signals</div>
+        <div class="hsr-bar" style="background:var(--yellow);width:{% if total_signals %}{% widthratio wait_signals total_signals 100 %}{% else %}0{% endif %}%"></div>
+      </div>
+      <div class="hsr-item">
+        <div class="hsr-num" style="color:var(--blue)">{{ active_day }}</div>
+        <div class="hsr-label">Most Active Day</div>
+        <div class="hsr-bar" style="background:var(--blue);width:100%"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- STATS -->
+  <div class="stats-row">
+    <div class="stat-card">
+      <span class="stat-icon">📊</span>
+      <span class="stat-num g">{{ total_analyses }}</span>
+      <div class="stat-label">Total Analyses</div>
+    </div>
+    <div class="stat-card">
+      <span class="stat-icon">⚡</span>
+      <span class="stat-num b">{{ total_signals }}</span>
+      <div class="stat-label">Signals Generated</div>
+    </div>
+    <div class="stat-card">
+      <span class="stat-icon">⭐</span>
+      <span class="stat-num y">{{ watchlist_count }}</span>
+      <div class="stat-label">Watchlist Stocks</div>
+    </div>
+    <div class="stat-card">
+      <span class="stat-icon">💰</span>
+      <span class="stat-num p">{% if profile and profile.capital %}₹{{ profile.capital|floatformat:0 }}{% else %}—{% endif %}</span>
+      <div class="stat-label">Trading Capital</div>
+    </div>
+  </div>
+
+  <!-- CONTENT GRID -->
+  <div class="content-grid">
+
+    <!-- Account Info -->
+    <div class="card">
+      <div class="card-head">
+        <span>👤 Account Details</span>
+        <button class="edit-btn" onclick="openEditModal()" style="padding:4px 10px;font-size:10px">✏️ Edit</button>
+      </div>
+      <div class="card-body">
+        <div class="info-row"><span class="info-label">Username</span><span class="info-val">{{ user.username }}</span></div>
+        <div class="info-row"><span class="info-label">Email</span><span class="info-val">{{ user.email|default:"—" }}</span></div>
+        <div class="info-row"><span class="info-label">Phone</span><span class="info-val">{{ profile.phone|default:"—" }}</span></div>
+        <div class="info-row"><span class="info-label">Experience</span><span class="info-val">{{ profile.get_trading_experience_display|default:"—" }}</span></div>
+        <div class="info-row"><span class="info-label">Trade Style</span><span class="info-val">{{ profile.get_preferred_trade_type_display|default:"—" }}</span></div>
+        <div class="info-row"><span class="info-label">Capital</span><span class="info-val" style="color:var(--yellow)">{% if profile.capital %}₹{{ profile.capital|floatformat:0 }}{% else %}—{% endif %}</span></div>
+        <div class="info-row"><span class="info-label">Member Since</span><span class="info-val">{{ user.date_joined|date:"d M Y" }}</span></div>
+        <div class="info-row"><span class="info-label">Last Login</span><span class="info-val">{{ user.last_login|date:"d M Y"|default:"—" }}</span></div>
+      </div>
+    </div>
+
+    <!-- Top Stocks -->
+    <div class="card">
+      <div class="card-head"><span>🏆 Most Analyzed</span><a href="{% url 'dashboard' %}" class="card-link">Go Analyze →</a></div>
+      <div class="card-body">
+        {% if top_stocks %}
+          {% for stock in top_stocks %}
+          {% with max_count=top_stocks.0.count %}
+          <div class="top-stock" onclick="window.location='/dashboard/?stock={{ stock.symbol }}'">
+            <div class="ts-rank {% if forloop.counter == 1 %}gold{% elif forloop.counter == 2 %}silver{% elif forloop.counter == 3 %}bronze{% else %}other{% endif %}">{{ forloop.counter }}</div>
+            <div class="ts-sym">{{ stock.symbol }}</div>
+            <div class="ts-bar-wrap"><div class="ts-bar" style="width:{% widthratio stock.count max_count 100 %}%"></div></div>
+            <div class="ts-count">{{ stock.count }}x</div>
+          </div>
+          {% endwith %}
+          {% endfor %}
+        {% else %}
+          <div class="empty-msg">No analyses yet — search a stock!</div>
+        {% endif %}
+      </div>
+    </div>
+
+    <!-- Recent Signals -->
+    <div class="card">
+      <div class="card-head"><span>⚡ Recent Signals</span></div>
+      <div class="card-body">
+        {% for sig in recent_signals %}
+        <div class="sig-item">
+          <div class="sig-sym">{{ sig.symbol }}</div>
+          <span class="sig-badge {% if 'BUY' in sig.signal %}sig-buy{% elif 'SELL' in sig.signal %}sig-sell{% else %}sig-wait{% endif %}">{{ sig.signal }}</span>
+          <span class="sig-type">{{ sig.trade_type }}</span>
+          <span class="sig-time">{{ sig.created_at|timesince }} ago</span>
+        </div>
+        {% empty %}
+          <div class="empty-msg">No signals yet</div>
+        {% endfor %}
+      </div>
+    </div>
+
+    <!-- Recent Activity -->
+    <div class="card">
+      <div class="card-head"><span>📋 Recent Activity</span></div>
+      <div class="card-body">
+        {% for act in recent_activity %}
+        <div class="act-item">
+          <div class="act-dot" style="background:{% if act.action == 'login' %}var(--green){% elif act.action == 'logout' %}var(--muted){% elif act.action == 'analyze' %}var(--blue){% elif act.action == 'watchlist_add' %}var(--yellow){% else %}var(--purple){% endif %}"></div>
+          <span class="act-text">
+            {% if act.action == 'login' %}Logged in
+            {% elif act.action == 'logout' %}Logged out
+            {% elif act.action == 'analyze' %}Analyzed {{ act.detail }}
+            {% elif act.action == 'watchlist_add' %}Added {{ act.detail }} to watchlist
+            {% elif act.action == 'watchlist_remove' %}Removed {{ act.detail }} from watchlist
+            {% else %}{{ act.action }}{% if act.detail %} — {{ act.detail }}{% endif %}
+            {% endif %}
+          </span>
+          <span class="act-time">{{ act.timestamp|timesince }} ago</span>
+        </div>
+        {% empty %}
+          <div class="empty-msg">No activity yet</div>
+        {% endfor %}
+      </div>
+    </div>
+
+    <!-- Watchlist -->
+    <div class="card" style="grid-column:1/-1">
+      <div class="card-head"><span>⭐ My Watchlist</span><a href="{% url 'dashboard' %}" class="card-link">Open Dashboard →</a></div>
+      <div class="card-body">
+        {% if watchlist_items %}
+        <div class="wl-chips">
+          {% for item in watchlist_items %}
+          <a href="{% url 'dashboard' %}?stock={{ item.symbol }}" class="wl-chip">{{ item.symbol }}</a>
+          {% endfor %}
+          {% if watchlist_count > 8 %}
+          <span class="wl-chip" style="color:var(--muted)">+{{ watchlist_count|add:"-8" }} more</span>
+          {% endif %}
+        </div>
+        {% else %}
+          <div class="empty-msg">No stocks in watchlist yet — add from dashboard</div>
+        {% endif %}
+      </div>
+    </div>
+
+  </div>
+</div>
+
+<!-- EDIT MODAL -->
+<div class="modal-bg" id="editModal" onclick="if(event.target===this)closeEditModal()">
+  <div class="modal">
+    <div class="modal-head">
+      <div class="modal-title">✏️ Edit Profile</div>
+      <button class="modal-close" onclick="closeEditModal()">✕</button>
+    </div>
+    <div class="modal-body">
+      <form method="POST" action="{% url 'profile' %}">
+        {% csrf_token %}
+        <div class="form-section-title" style="border-top:none;padding-top:0">Personal Info</div>
+        <div class="form-row">
+          <div class="form-group">
+            <label class="form-label">First Name</label>
+            <input type="text" name="first_name" class="form-input" value="{{ user.first_name }}" placeholder="First name">
+          </div>
+          <div class="form-group">
+            <label class="form-label">Last Name</label>
+            <input type="text" name="last_name" class="form-input" value="{{ user.last_name }}" placeholder="Last name">
+          </div>
+        </div>
+        <div class="form-group">
+          <label class="form-label">Email</label>
+          <input type="email" name="email" class="form-input" value="{{ user.email }}" placeholder="your@email.com">
+        </div>
+        <div class="form-group">
+          <label class="form-label">Phone</label>
+          <input type="text" name="phone" class="form-input" value="{{ profile.phone|default:'' }}" placeholder="+91 9876543210">
+        </div>
+        <div class="form-section-title">Trading Preferences</div>
+        <div class="form-row">
+          <div class="form-group">
+            <label class="form-label">Experience Level</label>
+            <select name="trading_experience" class="form-select">
+              <option value="beginner" {% if profile.trading_experience == 'beginner' %}selected{% endif %}>🌱 Beginner</option>
+              <option value="intermediate" {% if profile.trading_experience == 'intermediate' %}selected{% endif %}>📈 Intermediate</option>
+              <option value="expert" {% if profile.trading_experience == 'expert' %}selected{% endif %}>🏆 Expert</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label class="form-label">Preferred Trade Type</label>
+            <select name="preferred_trade_type" class="form-select">
+              <option value="intraday" {% if profile.preferred_trade_type == 'intraday' %}selected{% endif %}>⚡ Intraday</option>
+              <option value="swing" {% if profile.preferred_trade_type == 'swing' %}selected{% endif %}>📊 Swing Trade</option>
+              <option value="longterm" {% if profile.preferred_trade_type == 'longterm' %}selected{% endif %}>🏦 Long Term</option>
+            </select>
+          </div>
+        </div>
+        <div class="form-group">
+          <label class="form-label">Trading Capital (₹)</label>
+          <input type="number" name="capital" class="form-input" value="{{ profile.capital|floatformat:0|default:'0' }}" min="0" step="1000" placeholder="50000">
+        </div>
+        <button type="submit" class="save-btn">💾 Save Changes</button>
+      </form>
+    </div>
+  </div>
+</div>
+
+<script>
+function openEditModal(){document.getElementById('editModal').classList.add('open');document.body.style.overflow='hidden'}
+function closeEditModal(){document.getElementById('editModal').classList.remove('open');document.body.style.overflow=''}
+document.addEventListener('keydown',e=>{if(e.key==='Escape')closeEditModal()})
+
+// Auto open modal if editing
+{% if request.GET.edit %}openEditModal();{% endif %}
+</script>
+</body>
+</html>
