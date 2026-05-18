@@ -83,31 +83,6 @@ def logout_view(request):
     logout(request)
     return redirect('home')
 
-def create_admin(request):
-    from django.contrib.auth.models import User
-    from stocks.models import UserProfile
-    
-    user, created = User.objects.get_or_create(username='admin')
-    if created:
-        user.set_password('admin123')
-        user.is_staff = True
-        user.is_superuser = True
-        user.save()
-    
-    # Create profile if missing
-    profile, _ = UserProfile.objects.get_or_create(
-        user=user,
-        defaults={
-            'is_admin': True,
-            'trading_experience': 'expert',
-            'preferred_trade_type': 'swing',
-            'capital': 100000,
-        }
-    )
-    profile.is_admin = True
-    profile.save()
-    
-    return JsonResponse({'status': 'admin ready'})
 
 
 def register_view(request):
