@@ -22,7 +22,7 @@
 ![Landing Page](screenshots/index.png)
 
 ### 📊 Dashboard — Live Trading Analysis
-![Dashboard](screenshots/dashboard.png)
+![Dashboard](screenshots/user_home.png)
 
 ### 📰 Market News
 ![News](screenshots/news.png)
