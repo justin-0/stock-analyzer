@@ -106,4 +106,5 @@ CACHE_TIMEOUT = int(os.getenv('CACHE_TIMEOUT', '300'))
 CSRF_TRUSTED_ORIGINS = [
     'https://*.railway.app',
     'https://*.up.railway.app',
+    'https://niftyanalyzer.up.railway.app',
 ]
