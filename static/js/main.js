@@ -66,6 +66,8 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // Check price alerts every 60s
     alertCheckTimer = setInterval(checkPriceAlerts, 60000);
+        // Start paper trade monitor
+    startPaperTradeMonitor();
 
     // Keyboard shortcut: / → focus search
     document.addEventListener('keydown', e => {
@@ -474,6 +476,8 @@ function updateSignalPanel(data) {
     updatePatterns(patterns);
     updateSupportResistance(support_resistance, indicators.current_price);
     updateAnalysisDescription(data, currentSymbol);
+    fillPaperTradeForm(data);
+
 }
 
 // ── INDICATOR BAR (bottom of chart) ──────────────────────────
