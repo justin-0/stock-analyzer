@@ -912,10 +912,17 @@ def paper_trade_list(request):
     active = PaperTrade.objects.filter(user=request.user, status='active')
     closed = PaperTrade.objects.filter(user=request.user, status='closed')[:30]
 
+    # Use user's personal token if saved, else .env fallback
+    profile    = getattr(request.user, 'profile', None)
+    user_token = getattr(profile, 'upstox_token', '').strip() or None
+
     active_data = []
     for t in active:
-        quote = get_quote(t.symbol)
-        cur   = quote['current'] if quote else t.entry_price
+        # Try Upstox first for live real-time price (bypasses cache)
+        quote = get_upstox_quote(t.symbol, access_token=user_token)
+        if not quote:
+            quote = get_quote(t.symbol)
+        cur = quote['current'] if quote else t.entry_price
         pnl, pct = t.calculate_pnl(cur)
         active_data.append({
             'id': t.id, 'symbol': t.symbol,

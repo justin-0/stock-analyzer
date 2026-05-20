@@ -197,8 +197,31 @@ function loadTrades() {
         .then(r => r.json())
         .then(data => {
             renderSummary(data.summary);
+
+            // Snapshot existing current prices BEFORE re-render so we can flash changes
+            const prev = {};
+            document.querySelectorAll('[id^="cur-"]').forEach(el => {
+                prev[el.id.replace('cur-', '')] = el.textContent;
+            });
+
             renderActive(data.active || []);
             renderClosed(data.closed || []);
+
+            // Flash cells whose price changed
+            document.querySelectorAll('[id^="cur-"]').forEach(el => {
+                const id = el.id.replace('cur-', '');
+                if (prev[id] && prev[id] !== el.textContent) {
+                    el.style.transition = 'none';
+                    el.style.background = 'rgba(0,255,136,0.22)';
+                    el.style.borderRadius = '4px';
+                    el.style.padding = '2px 5px';
+                    setTimeout(() => {
+                        el.style.transition = 'background 0.8s ease, padding 0.8s ease';
+                        el.style.background = 'transparent';
+                        el.style.padding = '0';
+                    }, 60);
+                }
+            });
         })
         .catch(() => {});
 }
@@ -234,7 +257,7 @@ function renderActive(trades) {
             <td><span class="${isBuy ? 'dir-buy' : 'dir-sell'}">${isBuy ? 'BUY' : 'SHORT'}</span></td>
             <td>${typeBadge(t.trade_type)}</td>
             <td class="price-cell">₹${fmt(t.entry_price)}</td>
-            <td class="cur-cell" style="color:${curColor}">₹${fmt(t.current_price)}</td>
+            <td class="cur-cell" id="cur-${t.id}" style="color:${curColor}">₹${fmt(t.current_price)}</td>
             <td class="sl-cell">₹${fmt(t.stop_loss)}</td>
             <td class="t1-cell">₹${fmt(t.target1)}</td>
             <td class="t2-cell">₹${fmt(t.target2)}</td>
