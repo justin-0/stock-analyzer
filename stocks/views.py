@@ -7,7 +7,7 @@ from django.contrib.auth.models import User
 from django.utils import timezone
 from django.conf import settings
 from django.db.models import Count, Q
-from .models import Watchlist, UserProfile, ActivityLog, SignalHistory, StockCache
+from .models import Watchlist, UserProfile, ActivityLog, SignalHistory, StockCache , PaperTrade
 from .utils import (
     get_quote, get_candle_data, calculate_indicators, generate_signal,
     detect_candle_patterns, get_support_resistance, score_trade_types,
@@ -839,3 +839,121 @@ def ws_token(request):
         return JsonResponse({'ws_url': ws_url, 'token': access_token})
     except Exception as e:
         return JsonResponse({'error': str(e)}, status=500)
+    
+
+
+
+
+@csrf_exempt
+@login_required(login_url='login')
+def paper_trade_open(request):
+    if request.method != 'POST':
+        return JsonResponse({'error': 'Invalid method'}, status=405)
+    try:
+        data = json.loads(request.body)
+    except Exception:
+        return JsonResponse({'error': 'Invalid JSON'}, status=400)
+
+    symbol     = data.get('symbol', '').upper().strip()
+    direction  = data.get('direction', 'buy')
+    trade_type = data.get('trade_type', 'swing')
+    entry      = float(data.get('entry_price', 0))
+    sl         = float(data.get('stop_loss', 0))
+    t1         = float(data.get('target1', 0))
+    t2         = float(data.get('target2', 0))
+    t3         = float(data.get('target3', 0)) if data.get('target3') else None
+    qty        = int(data.get('quantity', 1))
+
+    if not symbol or not entry:
+        return JsonResponse({'error': 'Missing required fields'}, status=400)
+
+    trade = PaperTrade.objects.create(
+        user=request.user, symbol=symbol, direction=direction,
+        trade_type=trade_type, entry_price=entry, stop_loss=sl,
+        target1=t1, target2=t2, target3=t3, quantity=qty,
+    )
+    log_activity(request.user, 'paper_trade', detail=f'{direction.upper()} {qty} {symbol} @ ₹{entry}', request=request)
+    return JsonResponse({'status': 'opened', 'trade_id': trade.id})
+
+
+@csrf_exempt
+@login_required(login_url='login')
+def paper_trade_close(request):
+    if request.method != 'POST':
+        return JsonResponse({'error': 'Invalid method'}, status=405)
+    try:
+        data = json.loads(request.body)
+    except Exception:
+        return JsonResponse({'error': 'Invalid JSON'}, status=400)
+
+    trade_id   = data.get('trade_id')
+    exit_price = float(data.get('exit_price', 0))
+    result     = data.get('result', 'manual')
+
+    try:
+        trade = PaperTrade.objects.get(id=trade_id, user=request.user, status='active')
+    except PaperTrade.DoesNotExist:
+        return JsonResponse({'error': 'Trade not found'}, status=404)
+
+    pnl, pct        = trade.calculate_pnl(exit_price)
+    trade.exit_price = exit_price
+    trade.pnl        = pnl
+    trade.pnl_pct    = pct
+    trade.result     = result
+    trade.status     = 'closed'
+    trade.closed_at  = timezone.now()
+    trade.save()
+
+    return JsonResponse({'status': 'closed', 'pnl': pnl, 'pnl_pct': pct})
+
+
+@login_required(login_url='login')
+def paper_trade_list(request):
+    active = PaperTrade.objects.filter(user=request.user, status='active')
+    closed = PaperTrade.objects.filter(user=request.user, status='closed')[:30]
+
+    active_data = []
+    for t in active:
+        quote = get_quote(t.symbol)
+        cur   = quote['current'] if quote else t.entry_price
+        pnl, pct = t.calculate_pnl(cur)
+        active_data.append({
+            'id': t.id, 'symbol': t.symbol,
+            'direction': t.direction, 'trade_type': t.trade_type,
+            'entry_price': t.entry_price, 'stop_loss': t.stop_loss,
+            'target1': t.target1, 'target2': t.target2,
+            'target3': t.target3, 'quantity': t.quantity,
+            'current_price': cur, 'pnl': pnl, 'pnl_pct': round(pct, 2),
+            'created_at': t.created_at.strftime('%d %b %H:%M'),
+        })
+
+    closed_data = [{
+        'id': t.id, 'symbol': t.symbol,
+        'direction': t.direction, 'trade_type': t.trade_type,
+        'entry_price': t.entry_price, 'exit_price': t.exit_price,
+        'quantity': t.quantity, 'pnl': t.pnl,
+        'pnl_pct': t.pnl_pct, 'result': t.result,
+        'closed_at': t.closed_at.strftime('%d %b %H:%M') if t.closed_at else '',
+    } for t in closed]
+
+    all_closed = PaperTrade.objects.filter(user=request.user, status='closed')
+    total_pnl  = sum(t.pnl or 0 for t in all_closed)
+    wins       = all_closed.filter(pnl__gt=0).count()
+    losses     = all_closed.filter(pnl__lte=0).count()
+    total      = all_closed.count()
+    win_rate   = round((wins / total) * 100) if total > 0 else 0
+
+    return JsonResponse({
+        'active':  active_data,
+        'closed':  closed_data,
+        'summary': {
+            'total_pnl': round(total_pnl, 2),
+            'wins': wins, 'losses': losses,
+            'total': total, 'win_rate': win_rate,
+        }
+    })
+
+
+@login_required(login_url='login')
+def trades_view(request):
+    return render(request, 'stocks/trades.html')

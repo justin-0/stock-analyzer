@@ -108,3 +108,43 @@ class SignalHistory(models.Model):
 
     class Meta:
         ordering = ['-created_at']
+
+
+
+class PaperTrade(models.Model):
+    DIRECTION_CHOICES = [('buy','Buy'),('sell','Sell')]
+    STATUS_CHOICES    = [('active','Active'),('closed','Closed')]
+    RESULT_CHOICES    = [('sl','Stop Loss'),('t1','Target 1'),('t2','Target 2'),('t3','Target 3'),('manual','Manual'),('market_close','Market Close'),('pending','Pending')]
+
+    user        = models.ForeignKey(User, on_delete=models.CASCADE, related_name='paper_trades')
+    symbol      = models.CharField(max_length=20)
+    direction   = models.CharField(max_length=4, choices=DIRECTION_CHOICES)
+    trade_type  = models.CharField(max_length=10, default='swing')
+    status      = models.CharField(max_length=12, choices=STATUS_CHOICES, default='active')
+    result      = models.CharField(max_length=15, choices=RESULT_CHOICES, default='pending')
+
+    entry_price = models.FloatField()
+    stop_loss   = models.FloatField()
+    target1     = models.FloatField()
+    target2     = models.FloatField()
+    target3     = models.FloatField(null=True, blank=True)
+    quantity    = models.IntegerField(default=1)
+
+    exit_price  = models.FloatField(null=True, blank=True)
+    pnl         = models.FloatField(null=True, blank=True)
+    pnl_pct     = models.FloatField(null=True, blank=True)
+
+    created_at  = models.DateTimeField(auto_now_add=True)
+    closed_at   = models.DateTimeField(null=True, blank=True)
+
+    class Meta:
+        ordering = ['-created_at']
+
+    def calculate_pnl(self, current_price):
+        if self.direction == 'buy':
+            pnl = (current_price - self.entry_price) * self.quantity
+            pct = ((current_price - self.entry_price) / self.entry_price) * 100
+        else:
+            pnl = (self.entry_price - current_price) * self.quantity
+            pct = ((self.entry_price - current_price) / self.entry_price) * 100
+        return round(pnl, 2), round(pct, 2)

@@ -1631,6 +1631,54 @@
             </div>
             <div class="alert-list" id="alertList"></div>
         </div>
+        <!-- PAPER TRADE -->
+        <div class="rs-section" id="paperTradeSection">
+            <div class="rs-title" style="display:flex;align-items:center;justify-content:space-between">
+                <span>📋 Paper Trade</span>
+                <a href="{% url 'trades' %}" style="font-size:9px;color:var(--blue);text-decoration:none;font-weight:700;padding:2px 7px;border:1px solid rgba(0,170,255,0.3);border-radius:4px">My Trades →</a>
+            </div>
+            <div id="ptNoStock" class="placeholder-text">Analyze a stock first</div>
+            <div id="ptForm" style="display:none">
+                <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-bottom:6px">
+                    <div>
+                        <div style="font-size:9px;color:var(--muted);font-weight:700;margin-bottom:3px">ENTRY ₹</div>
+                        <input type="number" id="ptEntry" step="0.01" style="width:100%;background:rgba(255,255,255,0.05);border:1px solid var(--border);border-radius:6px;padding:5px 7px;color:#fff;font-size:11px;font-family:'Fira Code',monospace;outline:none">
+                    </div>
+                    <div>
+                        <div style="font-size:9px;color:var(--muted);font-weight:700;margin-bottom:3px">QTY</div>
+                        <input type="number" id="ptQty" value="1" min="1" style="width:100%;background:rgba(255,255,255,0.05);border:1px solid var(--border);border-radius:6px;padding:5px 7px;color:#fff;font-size:11px;font-family:'Fira Code',monospace;outline:none">
+                    </div>
+                </div>
+                <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-bottom:6px">
+                    <div>
+                        <div style="font-size:9px;color:var(--red);font-weight:700;margin-bottom:3px">STOP LOSS ₹</div>
+                        <input type="number" id="ptSL" step="0.01" style="width:100%;background:rgba(255,71,87,0.04);border:1px solid rgba(255,71,87,0.2);border-radius:6px;padding:5px 7px;color:var(--red);font-size:11px;font-family:'Fira Code',monospace;outline:none">
+                    </div>
+                    <div>
+                        <div style="font-size:9px;color:var(--yellow);font-weight:700;margin-bottom:3px">TARGET 1 ₹</div>
+                        <input type="number" id="ptT1" step="0.01" style="width:100%;background:rgba(255,196,0,0.04);border:1px solid rgba(255,196,0,0.2);border-radius:6px;padding:5px 7px;color:var(--yellow);font-size:11px;font-family:'Fira Code',monospace;outline:none">
+                    </div>
+                </div>
+                <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-bottom:6px">
+                    <div>
+                        <div style="font-size:9px;color:var(--green);font-weight:700;margin-bottom:3px">TARGET 2 ₹</div>
+                        <input type="number" id="ptT2" step="0.01" style="width:100%;background:rgba(0,255,136,0.04);border:1px solid rgba(0,255,136,0.2);border-radius:6px;padding:5px 7px;color:var(--green);font-size:11px;font-family:'Fira Code',monospace;outline:none">
+                    </div>
+                    <div>
+                        <div style="font-size:9px;color:var(--green);font-weight:700;margin-bottom:3px">TARGET 3 ₹</div>
+                        <input type="number" id="ptT3" step="0.01" style="width:100%;background:rgba(0,255,136,0.04);border:1px solid rgba(0,255,136,0.2);border-radius:6px;padding:5px 7px;color:var(--green);font-size:11px;font-family:'Fira Code',monospace;outline:none">
+                    </div>
+                </div>
+                <div style="display:flex;gap:8px">
+                    <button onclick="openPaperTrade('buy')" style="flex:1;padding:9px;background:rgba(0,255,136,0.1);border:1px solid rgba(0,255,136,0.3);border-radius:8px;color:var(--green);font-size:12px;font-weight:700;cursor:pointer;font-family:'Plus Jakarta Sans',sans-serif;transition:all 0.2s">
+                        🟢 BUY
+                    </button>
+                    <button onclick="openPaperTrade('sell')" style="flex:1;padding:9px;background:rgba(255,71,87,0.1);border:1px solid rgba(255,71,87,0.3);border-radius:8px;color:var(--red);font-size:12px;font-weight:700;cursor:pointer;font-family:'Plus Jakarta Sans',sans-serif;transition:all 0.2s">
+                        🔴 SHORT
+                    </button>
+                </div>
+            </div>
+        </div>
 
         <!-- 11. Stock News -->
         <div class="rs-section" id="newsSection">

@@ -27,6 +27,11 @@ urlpatterns = [
     path('api/stock-news/', views.stock_news, name='stock_news'),
     path('api/upstox-token/', views.save_upstox_token, name='save_upstox_token'),
 
+    path('trades/', views.trades_view, name='trades'),
+    path('api/paper-trade/open/',  views.paper_trade_open,  name='paper_trade_open'),
+    path('api/paper-trade/close/', views.paper_trade_close, name='paper_trade_close'),
+    path('api/paper-trade/list/',  views.paper_trade_list,  name='paper_trade_list'),
+
     # ── News & Screener ───────────────────────────────────────
     path('news/', views.news_view, name='news'),
     path('screener/', views.screener_view, name='screener'),

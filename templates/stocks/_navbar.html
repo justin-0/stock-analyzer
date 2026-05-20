@@ -34,6 +34,8 @@ Example: {% include 'stocks/_navbar.html' with active_page='news' %}
 
         <a href="{% url 'candles' %}" class="nav-btn{% if active_page == 'candles' %} active{% endif %}"
            aria-label="Candles">🕯 Candles</a>
+           <a href="{% url 'trades' %}" class="nav-btn{% if active_page == 'trades' %} active{% endif %}"
+   aria-label="Trades">📋 Trades</a>
 
         {% if show_watchlist %}
         <button class="nav-btn" id="watchlistNavBtn" onclick="toggleWatchlistDropdown()">

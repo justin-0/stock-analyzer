@@ -1,0 +1,310 @@
+{% load static %}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>My Trades — StockAnalyzer</title>
+<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&family=Fira+Code:wght@400;500;600&display=swap" rel="stylesheet">
+{% include 'stocks/_navbar_styles.html' %}
+<style>
+*,*::before,*::after{margin:0;padding:0;box-sizing:border-box}
+:root{
+  --bg:#0a0e1a;--bg2:#0d1224;--green:#00ff88;--blue:#00aaff;
+  --red:#ff4757;--yellow:#ffc400;--purple:#a064ff;
+  --border:rgba(255,255,255,0.07);--muted:rgba(255,255,255,0.4);
+  --nav-h:56px;
+}
+html,body{min-height:100%;background:var(--bg);color:#fff;font-family:'Plus Jakarta Sans',sans-serif}
+::-webkit-scrollbar{width:4px}::-webkit-scrollbar-thumb{background:rgba(255,255,255,0.1);border-radius:4px}
+
+.page{max-width:1300px;margin:0 auto;padding:28px 20px 60px}
+.page-header{margin-bottom:24px;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:12px}
+.page-title{font-size:24px;font-weight:800}
+.page-title span{color:var(--green)}
+.back-btn{padding:7px 14px;background:rgba(255,255,255,0.04);border:1px solid var(--border);border-radius:8px;color:var(--muted);font-size:12px;font-weight:600;text-decoration:none;transition:all 0.2s}
+.back-btn:hover{color:#fff;border-color:rgba(255,255,255,0.2)}
+
+/* Summary cards */
+.summary-row{display:grid;grid-template-columns:repeat(5,1fr);gap:12px;margin-bottom:28px}
+@media(max-width:800px){.summary-row{grid-template-columns:repeat(2,1fr)}}
+.sum-card{background:rgba(255,255,255,0.03);border:1px solid var(--border);border-radius:12px;padding:14px 16px;text-align:center}
+.sum-num{font-size:20px;font-weight:800;font-family:'Fira Code',monospace;margin-bottom:3px}
+.sum-label{font-size:10px;color:var(--muted);font-weight:600;text-transform:uppercase;letter-spacing:0.06em}
+
+/* Section headers */
+.section-title{font-size:13px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:0.08em;margin-bottom:12px;display:flex;align-items:center;gap:8px}
+.section-badge{background:rgba(255,255,255,0.06);border-radius:10px;padding:1px 8px;font-size:10px}
+
+/* Table */
+.table-wrap{background:rgba(255,255,255,0.02);border:1px solid var(--border);border-radius:14px;overflow:hidden;margin-bottom:28px;overflow-x:auto}
+table{width:100%;border-collapse:collapse;min-width:900px}
+thead tr{background:rgba(255,255,255,0.04)}
+th{padding:10px 12px;text-align:left;font-size:10px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:0.06em;white-space:nowrap;border-bottom:1px solid var(--border)}
+td{padding:10px 12px;font-size:12px;border-bottom:1px solid rgba(255,255,255,0.03);vertical-align:middle;white-space:nowrap}
+tr:last-child td{border-bottom:none}
+tr:hover td{background:rgba(255,255,255,0.02)}
+
+.sym-cell{font-family:'Fira Code',monospace;font-weight:700;font-size:13px}
+.dir-buy{color:var(--green);font-weight:700;font-size:10px;padding:2px 7px;background:rgba(0,255,136,0.12);border-radius:4px}
+.dir-sell{color:var(--red);font-weight:700;font-size:10px;padding:2px 7px;background:rgba(255,71,87,0.12);border-radius:4px}
+.type-badge{font-size:9px;font-weight:700;padding:2px 6px;border-radius:4px;text-transform:capitalize}
+.type-intraday{background:rgba(255,71,87,0.12);color:var(--red)}
+.type-swing{background:rgba(0,170,255,0.12);color:var(--blue)}
+.type-longterm{background:rgba(0,255,136,0.12);color:var(--green)}
+.price-cell{font-family:'Fira Code',monospace;font-size:12px}
+.sl-cell{color:var(--red);font-family:'Fira Code',monospace}
+.t1-cell{color:var(--yellow);font-family:'Fira Code',monospace}
+.t2-cell{color:var(--green);font-family:'Fira Code',monospace}
+.t3-cell{color:var(--green);font-family:'Fira Code',monospace;font-weight:700}
+.cur-cell{font-family:'Fira Code',monospace;font-weight:700}
+.pnl-pos{color:var(--green);font-family:'Fira Code',monospace;font-weight:700}
+.pnl-neg{color:var(--red);font-family:'Fira Code',monospace;font-weight:700}
+
+.chart-btn{background:rgba(0,170,255,0.1);border:1px solid rgba(0,170,255,0.25);border-radius:6px;color:var(--blue);font-size:11px;font-weight:700;padding:4px 8px;cursor:pointer;text-decoration:none;display:inline-block;transition:all 0.2s}
+.chart-btn:hover{background:rgba(0,170,255,0.2)}
+.close-btn{background:rgba(255,71,87,0.1);border:1px solid rgba(255,71,87,0.25);border-radius:6px;color:var(--red);font-size:11px;font-weight:700;padding:4px 8px;cursor:pointer;font-family:'Plus Jakarta Sans',sans-serif;transition:all 0.2s}
+.close-btn.buy-close{background:rgba(0,255,136,0.1);border-color:rgba(0,255,136,0.25);color:var(--green)}
+.close-btn:hover{opacity:0.8}
+
+.result-badge{font-size:9px;font-weight:700;padding:2px 7px;border-radius:4px}
+.result-sl{background:rgba(255,71,87,0.15);color:var(--red)}
+.result-t1{background:rgba(255,196,0,0.15);color:var(--yellow)}
+.result-t2{background:rgba(0,255,136,0.15);color:var(--green)}
+.result-t3{background:rgba(0,255,136,0.2);color:var(--green)}
+.result-manual{background:rgba(255,255,255,0.08);color:var(--muted)}
+.result-market_close{background:rgba(160,100,255,0.15);color:var(--purple)}
+
+.empty-row td{text-align:center;padding:32px;color:var(--muted);font-style:italic}
+
+/* Loading spinner */
+.tbl-loading{display:flex;align-items:center;justify-content:center;padding:40px;gap:12px;color:var(--muted);font-size:13px}
+.spin{width:20px;height:20px;border:2px solid rgba(0,255,136,0.2);border-top-color:var(--green);border-radius:50%;animation:spin 0.8s linear infinite}
+@keyframes spin{to{transform:rotate(360deg)}}
+</style>
+</head>
+<body>
+
+{% include 'stocks/_navbar.html' with active_page='trades' %}
+
+<div class="page">
+    <div class="page-header">
+        <div class="page-title">📋 My <span>Paper Trades</span></div>
+        <a href="{% url 'dashboard' %}" class="back-btn">← Back to Dashboard</a>
+    </div>
+
+    <!-- Summary -->
+    <div class="summary-row" id="summaryRow">
+        <div class="sum-card"><div class="sum-num" id="sumTotal" style="color:var(--blue)">—</div><div class="sum-label">Total Trades</div></div>
+        <div class="sum-card"><div class="sum-num" id="sumWins" style="color:var(--green)">—</div><div class="sum-label">Wins</div></div>
+        <div class="sum-card"><div class="sum-num" id="sumLosses" style="color:var(--red)">—</div><div class="sum-label">Losses</div></div>
+        <div class="sum-card"><div class="sum-num" id="sumWinRate" style="color:var(--yellow)">—</div><div class="sum-label">Win Rate</div></div>
+        <div class="sum-card"><div class="sum-num" id="sumPnl">—</div><div class="sum-label">Total P&L</div></div>
+    </div>
+
+    <!-- Active Trades -->
+    <div class="section-title">
+        🟢 Active Trades
+        <span class="section-badge" id="activeCount">0</span>
+    </div>
+    <div class="table-wrap">
+        <table>
+            <thead>
+                <tr>
+                    <th>Stock</th>
+                    <th>Dir</th>
+                    <th>Type</th>
+                    <th>Entry</th>
+                    <th>Current</th>
+                    <th>SL</th>
+                    <th>T1</th>
+                    <th>T2</th>
+                    <th>T3</th>
+                    <th>Qty</th>
+                    <th>P&L</th>
+                    <th>Since</th>
+                    <th>Chart</th>
+                    <th>Action</th>
+                </tr>
+            </thead>
+            <tbody id="activeTable">
+                <tr><td colspan="14" class="empty-row" style="text-align:center;padding:32px;color:rgba(255,255,255,0.3);font-style:italic">Loading...</td></tr>
+            </tbody>
+        </table>
+    </div>
+
+    <!-- Closed Trades -->
+    <div class="section-title">
+        📁 Closed Trades
+        <span class="section-badge" id="closedCount">0</span>
+    </div>
+    <div class="table-wrap">
+        <table>
+            <thead>
+                <tr>
+                    <th>Stock</th>
+                    <th>Dir</th>
+                    <th>Type</th>
+                    <th>Entry</th>
+                    <th>Exit</th>
+                    <th>Qty</th>
+                    <th>Result</th>
+                    <th>P&L</th>
+                    <th>P&L %</th>
+                    <th>Closed At</th>
+                    <th>Chart</th>
+                </tr>
+            </thead>
+            <tbody id="closedTable">
+                <tr><td colspan="11" class="empty-row" style="text-align:center;padding:32px;color:rgba(255,255,255,0.3);font-style:italic">Loading...</td></tr>
+            </tbody>
+        </table>
+    </div>
+</div>
+
+<script>
+'use strict';
+
+function fmt(n) {
+    if (n === null || n === undefined || isNaN(n)) return '—';
+    return Number(n).toLocaleString('en-IN', {minimumFractionDigits:2, maximumFractionDigits:2});
+}
+
+function pnlClass(pnl) { return pnl >= 0 ? 'pnl-pos' : 'pnl-neg'; }
+function pnlSign(pnl)  { return pnl >= 0 ? '+' : ''; }
+
+function resultBadge(r) {
+    const map = {
+        sl: ['result-sl','Stop Loss'],
+        t1: ['result-t1','Target 1'],
+        t2: ['result-t2','Target 2'],
+        t3: ['result-t3','Target 3 🎯'],
+        manual: ['result-manual','Manual'],
+        market_close: ['result-market_close','Mkt Close'],
+        pending: ['result-manual','Pending'],
+    };
+    const [cls, label] = map[r] || ['result-manual', r];
+    return `<span class="result-badge ${cls}">${label}</span>`;
+}
+
+function typeBadge(t) {
+    const map = {intraday:'type-intraday',swing:'type-swing',longterm:'type-longterm'};
+    return `<span class="type-badge ${map[t]||'type-swing'}">${t}</span>`;
+}
+
+function loadTrades() {
+    fetch('/api/paper-trade/list/')
+        .then(r => r.json())
+        .then(data => {
+            renderSummary(data.summary);
+            renderActive(data.active || []);
+            renderClosed(data.closed || []);
+        })
+        .catch(() => {});
+}
+
+function renderSummary(s) {
+    if (!s) return;
+    document.getElementById('sumTotal').textContent   = s.total;
+    document.getElementById('sumWins').textContent    = s.wins;
+    document.getElementById('sumLosses').textContent  = s.losses;
+    document.getElementById('sumWinRate').textContent = s.win_rate + '%';
+    const pnlEl = document.getElementById('sumPnl');
+    pnlEl.textContent  = (s.total_pnl >= 0 ? '+' : '') + '₹' + Math.abs(s.total_pnl).toLocaleString('en-IN');
+    pnlEl.style.color  = s.total_pnl >= 0 ? 'var(--green)' : 'var(--red)';
+}
+
+function renderActive(trades) {
+    document.getElementById('activeCount').textContent = trades.length;
+    const tbody = document.getElementById('activeTable');
+    if (!trades.length) {
+        tbody.innerHTML = '<tr><td colspan="14" style="text-align:center;padding:32px;color:rgba(255,255,255,0.3);font-style:italic">No active trades — go to dashboard to open a trade</td></tr>';
+        return;
+    }
+    tbody.innerHTML = trades.map(t => {
+        const isBuy    = t.direction === 'buy';
+        const pnlCls   = pnlClass(t.pnl);
+        const curColor = t.pnl >= 0 ? 'var(--green)' : 'var(--red)';
+        const actionBtn = isBuy
+            ? `<button class="close-btn" onclick="manualClose(${t.id}, ${t.current_price})">🔴 SELL</button>`
+            : `<button class="close-btn buy-close" onclick="manualClose(${t.id}, ${t.current_price})">🟢 BUY</button>`;
+
+        return `<tr>
+            <td class="sym-cell">${t.symbol}</td>
+            <td><span class="${isBuy ? 'dir-buy' : 'dir-sell'}">${isBuy ? 'BUY' : 'SHORT'}</span></td>
+            <td>${typeBadge(t.trade_type)}</td>
+            <td class="price-cell">₹${fmt(t.entry_price)}</td>
+            <td class="cur-cell" style="color:${curColor}">₹${fmt(t.current_price)}</td>
+            <td class="sl-cell">₹${fmt(t.stop_loss)}</td>
+            <td class="t1-cell">₹${fmt(t.target1)}</td>
+            <td class="t2-cell">₹${fmt(t.target2)}</td>
+            <td class="t3-cell">${t.target3 ? '₹'+fmt(t.target3) : '—'}</td>
+            <td style="color:var(--muted)">${t.quantity}</td>
+            <td class="${pnlCls}">${pnlSign(t.pnl)}₹${fmt(Math.abs(t.pnl))} <span style="font-size:10px">(${pnlSign(t.pnl_pct)}${fmt(t.pnl_pct)}%)</span></td>
+            <td style="color:var(--muted);font-size:11px">${t.created_at}</td>
+            <td><a href="/dashboard/?stock=${t.symbol}" class="chart-btn">📊 Chart</a></td>
+            <td>${actionBtn}</td>
+        </tr>`;
+    }).join('');
+}
+
+function renderClosed(trades) {
+    document.getElementById('closedCount').textContent = trades.length;
+    const tbody = document.getElementById('closedTable');
+    if (!trades.length) {
+        tbody.innerHTML = '<tr><td colspan="11" style="text-align:center;padding:32px;color:rgba(255,255,255,0.3);font-style:italic">No closed trades yet</td></tr>';
+        return;
+    }
+    tbody.innerHTML = trades.map(t => {
+        const isBuy  = t.direction === 'buy';
+        const pnlCls = pnlClass(t.pnl);
+        return `<tr>
+            <td class="sym-cell">${t.symbol}</td>
+            <td><span class="${isBuy ? 'dir-buy' : 'dir-sell'}">${isBuy ? 'BUY' : 'SHORT'}</span></td>
+            <td>${typeBadge(t.trade_type)}</td>
+            <td class="price-cell">₹${fmt(t.entry_price)}</td>
+            <td class="price-cell">₹${fmt(t.exit_price)}</td>
+            <td style="color:var(--muted)">${t.quantity}</td>
+            <td>${resultBadge(t.result)}</td>
+            <td class="${pnlCls}">${pnlSign(t.pnl)}₹${fmt(Math.abs(t.pnl))}</td>
+            <td class="${pnlCls}">${pnlSign(t.pnl_pct)}${fmt(t.pnl_pct)}%</td>
+            <td style="color:var(--muted);font-size:11px">${t.closed_at}</td>
+            <td><a href="/dashboard/?stock=${t.symbol}" class="chart-btn">📊 Chart</a></td>
+        </tr>`;
+    }).join('');
+}
+
+function manualClose(tradeId, currentPrice) {
+    if (!confirm('Close this trade at ₹' + currentPrice + '?')) return;
+    fetch('/api/paper-trade/close/', {
+        method:  'POST',
+        headers: {
+            'Content-Type': 'application/json',
+            'X-CSRFToken':  getCsrf(),
+        },
+        body: JSON.stringify({ trade_id: tradeId, exit_price: currentPrice, result: 'manual' }),
+    })
+    .then(r => r.json())
+    .then(data => {
+        if (data.status === 'closed') {
+            const pnl = data.pnl;
+            alert((pnl >= 0 ? '✅ Profit: +₹' : '❌ Loss: -₹') + Math.abs(pnl).toFixed(2));
+            loadTrades();
+        }
+    })
+    .catch(() => alert('Error closing trade'));
+}
+
+function getCsrf() {
+    const el = document.cookie.split(';').find(c => c.trim().startsWith('csrftoken='));
+    return el ? el.split('=')[1] : '';
+}
+
+// Load on page load
+loadTrades();
+
+// Auto refresh every 5 seconds
+setInterval(loadTrades, 5000);
+</script>
+</body>
+</html>

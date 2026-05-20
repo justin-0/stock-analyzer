@@ -1954,3 +1954,128 @@ function updateAnalysisDescription(data, symbol) {
 
     `;
 }
+
+// ─────────────────────────────────────────────────────────────
+// PAPER TRADE
+// ─────────────────────────────────────────────────────────────
+
+let paperTradeCheckTimer = null;
+
+function fillPaperTradeForm(data) {
+    const sig = data.signal;
+    if (!sig) return;
+    document.getElementById('ptNoStock').style.display = 'none';
+    document.getElementById('ptForm').style.display    = '';
+    const t3 = sig.target2 ? Math.round(sig.target2 * 1.06 * 100) / 100 : '';
+    document.getElementById('ptEntry').value = sig.entry_price || '';
+    document.getElementById('ptSL').value    = sig.stop_loss   || '';
+    document.getElementById('ptT1').value    = sig.target1     || '';
+    document.getElementById('ptT2').value    = sig.target2     || '';
+    document.getElementById('ptT3').value    = t3;
+    const capital = parseFloat(document.getElementById('capitalInput')?.value) || 50000;
+    const qty     = Math.max(1, Math.floor((capital * 0.98) / sig.entry_price));
+    document.getElementById('ptQty').value = qty;
+}
+
+function openPaperTrade(direction) {
+    if (!currentSymbol) { showToast('Analyze a stock first', 'red'); return; }
+    const entry = parseFloat(document.getElementById('ptEntry').value);
+    const sl    = parseFloat(document.getElementById('ptSL').value);
+    const t1    = parseFloat(document.getElementById('ptT1').value);
+    const t2    = parseFloat(document.getElementById('ptT2').value);
+    const t3    = parseFloat(document.getElementById('ptT3').value) || null;
+    const qty   = parseInt(document.getElementById('ptQty').value) || 1;
+    if (!entry || !sl || !t1) { showToast('Fill Entry, SL and T1 first', 'red'); return; }
+    fetch('/api/paper-trade/open/', {
+        method:  'POST',
+        headers: { 'Content-Type': 'application/json', 'X-CSRFToken': getCsrf() },
+        body:    JSON.stringify({
+            symbol: currentSymbol, direction, trade_type: currentTradeType,
+            entry_price: entry, stop_loss: sl,
+            target1: t1, target2: t2, target3: t3, quantity: qty,
+        }),
+    })
+    .then(r => r.json())
+    .then(data => {
+        if (data.status === 'opened') {
+            const emoji = direction === 'buy' ? '🟢' : '🔴';
+            showToast(`${emoji} Paper ${direction.toUpperCase()} opened — ${currentSymbol}`, 'green');
+            startPaperTradeMonitor();
+        }
+    })
+    .catch(() => showToast('Failed to open trade', 'red'));
+}
+
+function closePaperTrade(tradeId, exitPrice, result) {
+    fetch('/api/paper-trade/close/', {
+        method:  'POST',
+        headers: { 'Content-Type': 'application/json', 'X-CSRFToken': getCsrf() },
+        body:    JSON.stringify({ trade_id: tradeId, exit_price: exitPrice, result }),
+    })
+    .then(r => r.json())
+    .then(data => {
+        if (data.status === 'closed') {
+            const up   = data.pnl >= 0;
+            const sign = up ? '+' : '';
+            showToast(`${up?'🟢':'🔴'} Trade closed — P&L: ${sign}₹${Math.abs(data.pnl)} (${sign}${data.pnl_pct}%)`, up ? 'green' : 'red');
+        }
+    })
+    .catch(() => {});
+}
+
+function startPaperTradeMonitor() {
+    if (paperTradeCheckTimer) clearInterval(paperTradeCheckTimer);
+    checkPaperTrades();
+    paperTradeCheckTimer = setInterval(checkPaperTrades, 5000);
+}
+
+function checkPaperTrades() {
+    fetch('/api/paper-trade/list/')
+        .then(r => r.json())
+        .then(data => {
+            const trades = data.active || [];
+            if (!trades.length) return;
+            const istOffset = 5.5 * 60 * 60 * 1000;
+            const ist       = new Date(Date.now() + (new Date().getTimezoneOffset() * 60000) + istOffset);
+            const mins      = ist.getHours() * 60 + ist.getMinutes();
+            const isClose   = mins >= 930; // 3:30 PM
+            trades.forEach(t => {
+                const cur   = t.current_price;
+                const isBuy = t.direction === 'buy';
+                // Intraday market close
+                if (t.trade_type === 'intraday' && isClose) {
+                    showToast(`⏰ Market closed — auto closing ${t.symbol} @ ₹${fmt(cur)}`, 'red');
+                    closePaperTrade(t.id, cur, 'market_close');
+                    return;
+                }
+                // SL hit
+                const slHit = isBuy ? cur <= t.stop_loss : cur >= t.stop_loss;
+                if (slHit && t.trade_type !== 'longterm') {
+                    showToast(`🔴 SL HIT — ${t.symbol} @ ₹${fmt(cur)}`, 'red');
+                    closePaperTrade(t.id, cur, 'sl');
+                    return;
+                }
+                // T3 hit — auto close all
+                if (t.target3) {
+                    const t3Hit = isBuy ? cur >= t.target3 : cur <= t.target3;
+                    if (t3Hit) {
+                        showToast(`🎯 TARGET 3 HIT — ${t.symbol} @ ₹${fmt(cur)} | +₹${fmt(t.pnl)}`, 'green');
+                        closePaperTrade(t.id, cur, 't3');
+                        return;
+                    }
+                }
+                // T1 notification only
+                const t1Hit = isBuy ? cur >= t.target1 : cur <= t.target1;
+                if (t1Hit) showToast(`🟡 T1 HIT — ${t.symbol} ₹${fmt(cur)} — consider partial profit`, 'green');
+                // T2 notification only
+                const t2Hit = isBuy ? cur >= t.target2 : cur <= t.target2;
+                if (t2Hit) showToast(`🟢 T2 HIT — ${t.symbol} ₹${fmt(cur)} — strong profit zone`, 'green');
+            });
+        })
+        .catch(() => {});
+}
+
+function getCsrf() {
+    const el = document.cookie.split(';').find(c => c.trim().startsWith('csrftoken='));
+    return el ? el.split('=')[1].trim() : '';
+}
