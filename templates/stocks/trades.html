@@ -90,7 +90,12 @@ tr:hover td{background:rgba(255,255,255,0.02)}
 <div class="page">
     <div class="page-header">
         <div class="page-title">📋 My <span>Paper Trades</span></div>
-        <a href="{% url 'dashboard' %}" class="back-btn">← Back to Dashboard</a>
+        <div style="display:flex;gap:10px;align-items:center">
+            <button onclick="loadTrades()" style="padding:6px 13px;background:rgba(0,170,255,0.08);border:1px solid rgba(0,170,255,0.25);border-radius:8px;color:var(--blue);font-size:12px;font-weight:700;cursor:pointer;font-family:'Plus Jakarta Sans',sans-serif;transition:all 0.2s" title="Refresh prices">
+                🔄 Refresh
+            </button>
+            <a href="{% url 'dashboard' %}" class="back-btn">← Back to Dashboard</a>
+        </div>
     </div>
 
     <!-- Summary -->
@@ -228,7 +233,12 @@ function loadTrades() {
                 }
             });
         })
-        .catch(() => {})
+        .catch(() => {
+            document.getElementById('activeTable').innerHTML =
+                '<tr><td colspan="14" style="text-align:center;padding:32px;color:rgba(255,71,87,0.7);font-style:italic">⚠️ Error loading trades. Retrying...</td></tr>';
+            document.getElementById('closedTable').innerHTML =
+                '<tr><td colspan="11" style="text-align:center;padding:20px;color:rgba(255,255,255,0.2)"></td></tr>';
+        })
         .finally(() => { isLoading = false; });
 }
 

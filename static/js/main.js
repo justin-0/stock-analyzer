@@ -1990,6 +1990,26 @@ function openPaperTrade(direction) {
     const t3    = parseFloat(document.getElementById('ptT3').value) || null;
     const qty   = parseInt(document.getElementById('ptQty').value) || 1;
     if (!entry || !sl || !t1) { showToast('Fill Entry, SL and T1 first', 'red'); return; }
+
+    // ── Confirmation dialog ────────────────────────────────────────────────
+    const emoji    = direction === 'buy' ? '🟢 BUY' : '🔴 SHORT';
+    const typeLabel = { intraday: 'Intraday', swing: 'Swing', longterm: 'Long Term' }[currentTradeType] || currentTradeType;
+    const confirmed = window.confirm(
+        `${emoji} — ${currentSymbol}\n` +
+        `─────────────────────────\n` +
+        `Type   : ${typeLabel}\n` +
+        `Entry  : ₹${entry}\n` +
+        `Stop Loss : ₹${sl}\n` +
+        `Target 1  : ₹${t1}\n` +
+        (t2 ? `Target 2  : ₹${t2}\n` : '') +
+        (t3 ? `Target 3  : ₹${t3}\n` : '') +
+        `Qty    : ${qty} shares\n` +
+        `─────────────────────────\n` +
+        `Click OK to open this trade.`
+    );
+    if (!confirmed) return;   // user clicked Cancel — do nothing
+    // ──────────────────────────────────────────────────────────────────────
+
     fetch('/api/paper-trade/open/', {
         method:  'POST',
         headers: { 'Content-Type': 'application/json', 'X-CSRFToken': getCsrf() },
@@ -2002,8 +2022,8 @@ function openPaperTrade(direction) {
     .then(r => r.json())
     .then(data => {
         if (data.status === 'opened') {
-            const emoji = direction === 'buy' ? '🟢' : '🔴';
-            showToast(`${emoji} Paper ${direction.toUpperCase()} opened — ${currentSymbol}`, 'green');
+            const emj = direction === 'buy' ? '🟢' : '🔴';
+            showToast(`${emj} Paper ${direction.toUpperCase()} opened — ${currentSymbol}`, 'green');
             startPaperTradeMonitor();
         }
     })
