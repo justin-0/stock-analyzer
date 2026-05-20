@@ -2002,9 +2002,22 @@ function openPaperTrade(direction) {
     .then(r => r.json())
     .then(data => {
         if (data.status === 'opened') {
-            const emoji = direction === 'buy' ? '🟢' : '🔴';
-            showToast(`${emoji} Paper ${direction.toUpperCase()} opened — ${currentSymbol}`, 'green');
+            const emoji  = direction === 'buy' ? '🟢' : '🔴';
+            const action = direction === 'buy' ? 'BUY' : 'SHORT SELL';
+            const confirmed = confirm(
+                `${emoji} Paper ${action} opened!\n\n` +
+                `Stock: ${currentSymbol}\n` +
+                `Entry: ₹${document.getElementById('ptEntry').value}\n` +
+                `Stop Loss: ₹${document.getElementById('ptSL').value}\n` +
+                `Target 1: ₹${document.getElementById('ptT1').value}\n` +
+                `Target 3: ₹${document.getElementById('ptT3').value}\n` +
+                `Qty: ${document.getElementById('ptQty').value}\n\n` +
+                `Click OK to view My Trades page\nClick Cancel to stay on dashboard`
+            );
             startPaperTradeMonitor();
+            if (confirmed) {
+                window.location.href = '/trades/';
+            }
         }
     })
     .catch(() => showToast('Failed to open trade', 'red'));
