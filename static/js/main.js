@@ -2002,22 +2002,9 @@ function openPaperTrade(direction) {
     .then(r => r.json())
     .then(data => {
         if (data.status === 'opened') {
-            const emoji  = direction === 'buy' ? '🟢' : '🔴';
-            const action = direction === 'buy' ? 'BUY' : 'SHORT SELL';
-            const confirmed = confirm(
-                `${emoji} Paper ${action} opened!\n\n` +
-                `Stock: ${currentSymbol}\n` +
-                `Entry: ₹${document.getElementById('ptEntry').value}\n` +
-                `Stop Loss: ₹${document.getElementById('ptSL').value}\n` +
-                `Target 1: ₹${document.getElementById('ptT1').value}\n` +
-                `Target 3: ₹${document.getElementById('ptT3').value}\n` +
-                `Qty: ${document.getElementById('ptQty').value}\n\n` +
-                `Click OK to view My Trades page\nClick Cancel to stay on dashboard`
-            );
+            const emoji = direction === 'buy' ? '🟢' : '🔴';
+            showToast(`${emoji} Paper ${direction.toUpperCase()} opened — ${currentSymbol}`, 'green');
             startPaperTradeMonitor();
-            if (confirmed) {
-                window.location.href = '/trades/';
-            }
         }
     })
     .catch(() => showToast('Failed to open trade', 'red'));
@@ -2095,4 +2082,43 @@ function checkPaperTrades() {
 function getCsrf() {
     const el = document.cookie.split(';').find(c => c.trim().startsWith('csrftoken='));
     return el ? el.split('=')[1].trim() : '';
+}
+
+
+function showPaperTradeModal(direction) {
+    const isBuy  = direction === 'buy';
+    const emoji  = isBuy ? '🟢' : '🔴';
+    const action = isBuy ? 'BUY' : 'SHORT SELL';
+    const color  = isBuy ? 'rgba(0,255,136,0.15)' : 'rgba(255,71,87,0.15)';
+    const border = isBuy ? 'rgba(0,255,136,0.3)' : 'rgba(255,71,87,0.3)';
+    const grad   = isBuy
+        ? 'linear-gradient(135deg,rgba(0,255,136,0.1),rgba(0,170,255,0.1))'
+        : 'linear-gradient(135deg,rgba(255,71,87,0.1),rgba(255,196,0,0.08))';
+
+    // Update modal content
+    document.getElementById('ptModalIcon').textContent       = emoji;
+    document.getElementById('ptModalIcon').style.background  = color;
+    document.getElementById('ptModalIcon').style.borderColor = border;
+    document.getElementById('ptModalHeader').style.background = grad;
+    document.getElementById('ptModalTitle').textContent = `Paper ${action} Opened!`;
+    document.getElementById('ptModalSub').textContent   = `${currentSymbol} trade saved successfully`;
+    document.getElementById('ptModalStock').textContent = currentSymbol;
+    document.getElementById('ptModalQty').textContent   = document.getElementById('ptQty').value;
+    document.getElementById('ptModalEntry').textContent = '₹' + document.getElementById('ptEntry').value;
+    document.getElementById('ptModalSL').textContent    = '₹' + document.getElementById('ptSL').value;
+    document.getElementById('ptModalT1').textContent    = '₹' + document.getElementById('ptT1').value;
+    document.getElementById('ptModalT3').textContent    = document.getElementById('ptT3').value ? '₹' + document.getElementById('ptT3').value : '—';
+
+    // Show modal
+    document.getElementById('ptConfirmModal').classList.remove('hidden');
+    document.body.style.overflow = 'hidden';
+}
+
+function ptModalClose() {
+    document.getElementById('ptConfirmModal').classList.add('hidden');
+    document.body.style.overflow = '';
+}
+
+function ptModalGo() {
+    window.location.href = '/trades/';
 }
