@@ -757,7 +757,6 @@ def profile_view(request):
     return render(request, 'stocks/profile.html', context)
 
 # ─── Live Price Endpoint ────────────────────────────────────────
-
 @login_required(login_url='login')
 def live_price(request):
     symbol = request.GET.get('symbol', '').upper().strip()
@@ -767,14 +766,23 @@ def live_price(request):
     from .utils import get_upstox_quote, to_yf_symbol
     import yfinance as yf
 
-    # Use user's personal Upstox token if saved, else .env fallback (handled inside get_upstox_quote)
+    # ── 3-second server-side cache to reduce load ──
+    cache_key = f'live_{symbol}'
+    try:
+        cache_obj = StockCache.objects.get(symbol=symbol, data_type=cache_key)
+        age = (timezone.now() - cache_obj.cached_at).total_seconds()
+        if age < 3 and cache_obj.data:
+            return JsonResponse(cache_obj.data)
+    except StockCache.DoesNotExist:
+        pass
+
+    # Use user's personal Upstox token if saved, else .env fallback
     profile    = getattr(request.user, 'profile', None)
     user_token = getattr(profile, 'upstox_token', '').strip() or None
 
     quote = get_upstox_quote(symbol, access_token=user_token)
 
     if not quote:
-        # Try yfinance directly — no cache
         try:
             info = yf.Ticker(to_yf_symbol(symbol)).fast_info
             cur  = round(float(info.last_price), 2)
@@ -794,7 +802,7 @@ def live_price(request):
     if not quote:
         return JsonResponse({'error': 'Could not fetch price'}, status=404)
 
-    return JsonResponse({
+    result = {
         'price':      quote['current'],
         'change':     quote['change'],
         'change_pct': quote['change_pct'],
@@ -802,10 +810,15 @@ def live_price(request):
         'low':        quote.get('low',  0),
         'source':     quote.get('source', 'unknown'),
         'symbol':     symbol,
-    })
-# ─── WebSocket Token Endpoint ───────────────────────────────────
-# Provides Upstox WebSocket auth URL so the browser can open a
-# direct ws:// connection for true tick-by-tick streaming data.
+    }
+
+    # Save to cache
+    StockCache.objects.update_or_create(
+        symbol=symbol, data_type=cache_key,
+        defaults={'data': result}
+    )
+
+    return JsonResponse(result)
 
 @login_required(login_url='login')
 def ws_token(request):

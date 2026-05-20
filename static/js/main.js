@@ -55,7 +55,7 @@ document.addEventListener('DOMContentLoaded', () => {
     try { renderCandleStudyEmpty(); } catch(e) { console.error('renderCandleStudyEmpty error:', e); }
 
     // Auto refresh market strip every 60s
-    marketStripTimer = setInterval(updateMarketStrip, 60000);
+    marketStripTimer = setInterval(updateMarketStrip, 120000);
 
     // Auto refresh analysis every 5 min
     autoRefreshTimer = setInterval(() => {
@@ -1666,7 +1666,7 @@ function startLiveTicker(symbol) {
     }
 
     poll(); // fire immediately
-    liveTickTimer = setInterval(poll, 1000); // then every 1 second
+    liveTickTimer = setInterval(poll, 3000); // every 3 seconds
     _showLiveIndicator(true);
 }
 
@@ -2030,7 +2030,7 @@ function closePaperTrade(tradeId, exitPrice, result) {
 function startPaperTradeMonitor() {
     if (paperTradeCheckTimer) clearInterval(paperTradeCheckTimer);
     checkPaperTrades();
-    paperTradeCheckTimer = setInterval(checkPaperTrades, 5000);
+    paperTradeCheckTimer = setInterval(checkPaperTrades, 7000);
 }
 
 function checkPaperTrades() {
