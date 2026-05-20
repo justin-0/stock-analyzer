@@ -78,57 +78,123 @@ UPSTOX_TOKENS = {
 }
 
 
-def get_upstox_quote(symbol, access_token=None):
-    try:
-        token_key = UPSTOX_TOKENS.get(symbol.upper().strip())
-        if not token_key:
-            return None
-        access_token = access_token or getattr(settings, 'UPSTOX_ACCESS_TOKEN', '')
-        if not access_token:
-            return None
-        headers = {"Authorization": f"Bearer {access_token}", "Accept": "application/json"}
-        params  = {"symbol": token_key}
-        ltp_r   = requests.get("https://api.upstox.com/v2/market-quote/ltp",  headers=headers, params=params, timeout=5)
-        ohlc_r  = requests.get("https://api.upstox.com/v2/market-quote/ohlc", headers=headers, params=params, timeout=5)
-        if ltp_r.status_code != 200:
-            return None
-        ltp_data  = ltp_r.json().get('data', {})
-        ohlc_data = ohlc_r.json().get('data', {}) if ohlc_r.status_code == 200 else {}
-        ltp_key   = list(ltp_data.keys())[0]  if ltp_data  else None
-        ohlc_key  = list(ohlc_data.keys())[0] if ohlc_data else None
-        if not ltp_key:
-            return None
-        current = round(float(ltp_data[ltp_key]['last_price']), 2)
-        ohlc    = ohlc_data[ohlc_key]['ohlc'] if ohlc_key and 'ohlc' in ohlc_data.get(ohlc_key, {}) else {}
-        open_p  = round(float(ohlc.get('open',  current)), 2)
-        high_p  = round(float(ohlc.get('high',  current)), 2)
-        low_p   = round(float(ohlc.get('low',   current)), 2)
 
-        # 'close' in Upstox OHLC = previous day's close.
-        # If it equals current (OHLC call failed / pre-market stale), fall back to yfinance.
-        raw_close = ohlc.get('close')
-        if raw_close is not None and abs(float(raw_close) - current) > 0.005:
-            prev_close = round(float(raw_close), 2)
-        else:
-            # Fallback: yfinance previous close
-            try:
-                tkr = yf.Ticker(to_yf_symbol(symbol))
-                fi  = tkr.fast_info
-                yf_prev = getattr(fi, 'previous_close', None) or getattr(fi, 'regular_market_previous_close', None)
-                prev_close = round(float(yf_prev), 2) if yf_prev else current
-            except Exception:
-                prev_close = round(float(raw_close), 2) if raw_close is not None else current
+# ── 30-second in-memory price cache ──────────────────────────────────────────
+# Shared across all requests in the same worker process.
+# Prevents 10 users hitting /trades/ from each firing their own Upstox API calls.
+import time as _time
+_PRICE_CACHE: dict = {}          # { symbol: (price_dict, timestamp) }
+_PRICE_CACHE_TTL  = 30           # seconds
 
-        change     = round(current - prev_close, 2)
-        change_pct = round((change / prev_close) * 100, 2) if prev_close else 0
-        return {
-            'current': current, 'high': high_p, 'low': low_p, 'open': open_p,
-            'prev_close': prev_close, 'change': change, 'change_pct': change_pct,
-            'volume': 0, 'source': 'upstox_realtime',
-        }
-    except Exception as e:
-        print(f"Upstox quote error: {e}")
+
+def _price_cache_get(symbol):
+    entry = _PRICE_CACHE.get(symbol)
+    if entry and (_time.time() - entry[1]) < _PRICE_CACHE_TTL:
+        return entry[0]
     return None
+
+
+def _price_cache_set(symbol, data):
+    _PRICE_CACHE[symbol] = (data, _time.time())
+
+
+def get_upstox_quotes_bulk(symbols, access_token=None):
+    """
+    Fetch live LTP + OHLC for a LIST of symbols in exactly 2 HTTP calls total.
+    Returns dict: { symbol: quote_dict }
+    Symbols not in UPSTOX_TOKENS are skipped (caller should fall back to yfinance).
+    Results are cached for 30s — safe for multi-user concurrent access.
+    """
+    if not symbols:
+        return {}
+
+    access_token = access_token or getattr(settings, 'UPSTOX_ACCESS_TOKEN', '')
+    if not access_token:
+        return {}
+
+    # Split into cached vs needs-fetch
+    results   = {}
+    to_fetch  = []
+    for sym in symbols:
+        sym = sym.upper().strip()
+        cached = _price_cache_get(sym)
+        if cached:
+            results[sym] = cached
+        elif UPSTOX_TOKENS.get(sym):
+            to_fetch.append(sym)
+
+    if not to_fetch:
+        return results
+
+    # Build comma-separated token key string for all symbols needing fetch
+    token_keys = ','.join(UPSTOX_TOKENS[s] for s in to_fetch)
+    headers    = {'Authorization': f'Bearer {access_token}', 'Accept': 'application/json'}
+    params     = {'symbol': token_keys}
+
+    try:
+        # ONE LTP call + ONE OHLC call — regardless of how many symbols
+        ltp_r  = requests.get('https://api.upstox.com/v2/market-quote/ltp',
+                               headers=headers, params=params, timeout=6)
+        ohlc_r = requests.get('https://api.upstox.com/v2/market-quote/ohlc',
+                               headers=headers, params=params, timeout=6)
+
+        ltp_data  = ltp_r.json().get('data', {})  if ltp_r.status_code  == 200 else {}
+        ohlc_data = ohlc_r.json().get('data', {}) if ohlc_r.status_code == 200 else {}
+
+        # Build reverse map: upstox_key → symbol
+        key_to_sym = {v: k for k, v in UPSTOX_TOKENS.items()}
+
+        for upstox_key, ltp_entry in ltp_data.items():
+            sym = key_to_sym.get(upstox_key)
+            if not sym or sym not in to_fetch:
+                continue
+            try:
+                current  = round(float(ltp_entry['last_price']), 2)
+                ohlc_sym = ohlc_data.get(upstox_key, {})
+                ohlc     = ohlc_sym.get('ohlc', {})
+                open_p   = round(float(ohlc.get('open',  current)), 2)
+                high_p   = round(float(ohlc.get('high',  current)), 2)
+                low_p    = round(float(ohlc.get('low',   current)), 2)
+                raw_close = ohlc.get('close')
+
+                # prev_close: use OHLC close if it differs from LTP, else yfinance
+                if raw_close is not None and abs(float(raw_close) - current) > 0.005:
+                    prev_close = round(float(raw_close), 2)
+                else:
+                    try:
+                        fi = yf.Ticker(to_yf_symbol(sym)).fast_info
+                        yf_prev = getattr(fi, 'previous_close', None)
+                        prev_close = round(float(yf_prev), 2) if yf_prev else current
+                    except Exception:
+                        prev_close = round(float(raw_close), 2) if raw_close else current
+
+                change     = round(current - prev_close, 2)
+                change_pct = round((change / prev_close) * 100, 2) if prev_close else 0
+                quote = {
+                    'current': current, 'high': high_p, 'low': low_p, 'open': open_p,
+                    'prev_close': prev_close, 'change': change, 'change_pct': change_pct,
+                    'volume': 0, 'source': 'upstox_realtime',
+                }
+                _price_cache_set(sym, quote)
+                results[sym] = quote
+            except Exception:
+                continue
+
+    except Exception as e:
+        print(f'Upstox bulk quote error: {e}')
+
+    return results
+
+
+def get_upstox_quote(symbol, access_token=None):
+    """Single-symbol wrapper around the bulk fetch. Checks 30s cache first."""
+    symbol = symbol.upper().strip()
+    cached = _price_cache_get(symbol)
+    if cached:
+        return cached
+    res = get_upstox_quotes_bulk([symbol], access_token=access_token)
+    return res.get(symbol)
+
 
 
 def _yf_quote_from_ticker(yf_symbol):

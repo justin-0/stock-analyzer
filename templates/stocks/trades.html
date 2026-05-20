@@ -192,7 +192,12 @@ function typeBadge(t) {
     return `<span class="type-badge ${map[t]||'type-swing'}">${t}</span>`;
 }
 
+let isLoading = false;
+
 function loadTrades() {
+    if (isLoading) return;   // skip if previous request still in flight
+    isLoading = true;
+
     fetch('/api/paper-trade/list/')
         .then(r => r.json())
         .then(data => {
@@ -223,7 +228,8 @@ function loadTrades() {
                 }
             });
         })
-        .catch(() => {});
+        .catch(() => {})
+        .finally(() => { isLoading = false; });
 }
 
 function renderSummary(s) {
@@ -326,8 +332,9 @@ function getCsrf() {
 // Load on page load
 loadTrades();
 
-// Auto refresh every 5 seconds
-setInterval(loadTrades, 5000);
+// Auto refresh every 15 seconds (was 5s)
+// With 30s server-side cache + debounce guard, this is safe for many concurrent users
+setInterval(loadTrades, 15000);
 </script>
 </body>
 </html>

@@ -11,7 +11,7 @@ from .models import Watchlist, UserProfile, ActivityLog, SignalHistory, StockCac
 from .utils import (
     get_quote, get_candle_data, calculate_indicators, generate_signal,
     detect_candle_patterns, get_support_resistance, score_trade_types,
-    get_upstox_quote, get_market_overview,
+    get_upstox_quote, get_upstox_quotes_bulk, get_market_overview,
 )
 import json
 
@@ -929,13 +929,16 @@ def paper_trade_list(request):
     profile    = getattr(request.user, 'profile', None)
     user_token = getattr(profile, 'upstox_token', '').strip() or None
 
+    # ── ONE bulk Upstox call for ALL active trade symbols ──────────────────
+    # Cost: 2 HTTP requests total, regardless of how many trades exist.
+    active_symbols = list({t.symbol for t in active})
+    bulk_quotes    = get_upstox_quotes_bulk(active_symbols, access_token=user_token)
+
     active_data = []
     for t in active:
-        # Try Upstox first for live real-time price (bypasses cache)
-        quote = get_upstox_quote(t.symbol, access_token=user_token)
-        if not quote:
-            quote = get_quote(t.symbol)
-        cur = quote['current'] if quote else t.entry_price
+        # Use bulk result; fallback to cached yfinance quote for non-Upstox symbols
+        quote = bulk_quotes.get(t.symbol) or get_quote(t.symbol)
+        cur   = quote['current'] if quote else t.entry_price
         pnl, pct = t.calculate_pnl(cur)
         active_data.append({
             'id': t.id, 'symbol': t.symbol,
