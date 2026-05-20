@@ -91,7 +91,7 @@ tr:hover td{background:rgba(255,255,255,0.02)}
     <div class="page-header">
         <div class="page-title">📋 My <span>Paper Trades</span></div>
         <div style="display:flex;gap:10px;align-items:center">
-            <button onclick="loadTrades()" style="padding:6px 13px;background:rgba(0,170,255,0.08);border:1px solid rgba(0,170,255,0.25);border-radius:8px;color:var(--blue);font-size:12px;font-weight:700;cursor:pointer;font-family:'Plus Jakarta Sans',sans-serif;transition:all 0.2s" title="Refresh prices">
+            <button onclick="forceLoadTrades()" style="padding:6px 13px;background:rgba(0,170,255,0.08);border:1px solid rgba(0,170,255,0.25);border-radius:8px;color:var(--blue);font-size:12px;font-weight:700;cursor:pointer;font-family:'Plus Jakarta Sans',sans-serif;transition:all 0.2s" title="Refresh prices">
                 🔄 Refresh
             </button>
             <a href="{% url 'dashboard' %}" class="back-btn">← Back to Dashboard</a>
@@ -198,6 +198,11 @@ function typeBadge(t) {
 }
 
 let isLoading = false;
+
+function forceLoadTrades() {
+    isLoading = false;   // force-reset so Refresh always works
+    loadTrades();
+}
 
 function loadTrades() {
     if (isLoading) return;   // skip if previous request still in flight
@@ -342,9 +347,8 @@ function getCsrf() {
 // Load on page load
 loadTrades();
 
-// Auto refresh every 15 seconds (was 5s)
-// With 30s server-side cache + debounce guard, this is safe for many concurrent users
-setInterval(loadTrades, 15000);
+// Auto refresh every 10 seconds — fast enough to feel live, safe for server
+setInterval(loadTrades, 10000);
 </script>
 </body>
 </html>

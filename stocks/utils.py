@@ -84,7 +84,7 @@ UPSTOX_TOKENS = {
 # Prevents 10 users hitting /trades/ from each firing their own Upstox API calls.
 import time as _time
 _PRICE_CACHE: dict = {}          # { symbol: (price_dict, timestamp) }
-_PRICE_CACHE_TTL  = 30           # seconds
+_PRICE_CACHE_TTL  = 8            # seconds — fast enough to feel live, slow enough to protect API
 
 
 def _price_cache_get(symbol):
