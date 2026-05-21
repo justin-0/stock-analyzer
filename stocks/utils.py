@@ -187,13 +187,50 @@ def get_upstox_quotes_bulk(symbols, access_token=None):
 
 
 def get_upstox_quote(symbol, access_token=None):
-    """Single-symbol wrapper around the bulk fetch. Checks 30s cache first."""
+    """Single-symbol wrapper around the bulk fetch. Checks 8s cache first."""
     symbol = symbol.upper().strip()
     cached = _price_cache_get(symbol)
     if cached:
         return cached
     res = get_upstox_quotes_bulk([symbol], access_token=access_token)
     return res.get(symbol)
+
+
+def get_live_price_for_trade(symbol, bulk_quotes=None):
+    """
+    Always returns a FRESH price for paper trade P&L calculation.
+    Priority: Upstox bulk result → yfinance fast_info (no DB cache) → DB cache fallback.
+    Never returns a stale DB-cached price if a live source is reachable.
+    """
+    # 1. Use pre-fetched bulk Upstox result (fastest, already fetched)
+    if bulk_quotes:
+        q = bulk_quotes.get(symbol.upper())
+        if q:
+            return q
+
+    # 2. yfinance fast_info — direct, no DB cache
+    try:
+        yf_sym = to_yf_symbol(symbol)
+        info   = yf.Ticker(yf_sym).fast_info
+        cur    = round(float(info.last_price), 2)
+        prev   = round(float(info.previous_close), 2)
+        if cur > 0:
+            return {
+                'current': cur,
+                'prev_close': prev,
+                'change': round(cur - prev, 2),
+                'change_pct': round(((cur - prev) / prev) * 100, 2) if prev else 0,
+                'source': 'yfinance_live',
+            }
+    except Exception:
+        pass
+
+    # 3. Last resort: DB-cached value (may be stale, better than nothing)
+    cached = get_cached_data(symbol, 'quote')
+    if cached:
+        return cached
+
+    return None
 
 
 
