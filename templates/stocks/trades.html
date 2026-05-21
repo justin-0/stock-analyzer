@@ -221,6 +221,7 @@ function loadTrades() {
 
             renderActive(data.active || []);
             renderClosed(data.closed || []);
+            checkAndAutoClose(data.active || []);   // SL / T3 / market-close auto-sell
 
             // Flash cells whose price changed
             document.querySelectorAll('[id^="cur-"]').forEach(el => {
@@ -244,7 +245,9 @@ function loadTrades() {
             document.getElementById('closedTable').innerHTML =
                 '<tr><td colspan="11" style="text-align:center;padding:20px;color:rgba(255,255,255,0.2)"></td></tr>';
         })
-        .finally(() => { isLoading = false; });
+        .finally(() => {
+            isLoading = false;
+        });
 }
 
 function renderSummary(s) {
@@ -343,6 +346,111 @@ function getCsrf() {
     const el = document.cookie.split(';').find(c => c.trim().startsWith('csrftoken='));
     return el ? el.split('=')[1] : '';
 }
+
+// ── Auto-close monitor ────────────────────────────────────────────────────────
+// Tracks which trades have already triggered T1/T2 notifications (no spam)
+const notifiedT1   = new Set();
+const notifiedT2   = new Set();
+const autoClosing  = new Set();   // prevents double-close if polls overlap
+
+function showTradeAlert(msg, type) {
+    // Simple toast for trades page (no main.js available here)
+    const el = document.createElement('div');
+    el.style.cssText = [
+        'position:fixed', 'bottom:24px', 'right:24px', 'z-index:9999',
+        'padding:12px 18px', 'border-radius:10px', 'font-size:13px',
+        'font-weight:700', 'font-family:Plus Jakarta Sans,sans-serif',
+        'max-width:340px', 'line-height:1.4', 'pointer-events:none',
+        type === 'red'
+            ? 'background:rgba(255,71,87,0.18);border:1px solid rgba(255,71,87,0.4);color:#ff4757'
+            : 'background:rgba(0,255,136,0.14);border:1px solid rgba(0,255,136,0.35);color:#00ff88',
+    ].join(';');
+    el.textContent = msg;
+    document.body.appendChild(el);
+    setTimeout(() => el.remove(), 5000);
+}
+
+function checkAndAutoClose(trades) {
+    if (!trades || !trades.length) return;
+
+    const istOffset  = 5.5 * 60 * 60 * 1000;
+    const ist        = new Date(Date.now() + (new Date().getTimezoneOffset() * 60000) + istOffset);
+    const mins       = ist.getHours() * 60 + ist.getMinutes();
+    const isMarketClose = mins >= 930;   // 3:30 PM IST
+
+    trades.forEach(t => {
+        const cur   = t.current_price;
+        const isBuy = t.direction === 'buy';
+
+        // 1. Intraday market close at 3:30 PM
+        if (t.trade_type === 'intraday' && isMarketClose) {
+            doAutoClose(t.id, cur, 'market_close',
+                `⏰ Market closed — auto closing ${t.symbol} @ ₹${fmt(cur)}`, 'red');
+            return;
+        }
+
+        // 2. Stop Loss hit (intraday + swing only, not longterm)
+        const slHit = isBuy ? cur <= t.stop_loss : cur >= t.stop_loss;
+        if (slHit && t.trade_type !== 'longterm') {
+            doAutoClose(t.id, cur, 'sl',
+                `🔴 SL HIT — ${t.symbol} @ ₹${fmt(cur)}`, 'red');
+            return;
+        }
+
+        // 3. Target 3 hit — auto close all types
+        if (t.target3) {
+            const t3Hit = isBuy ? cur >= t.target3 : cur <= t.target3;
+            if (t3Hit) {
+                const sign = t.pnl >= 0 ? '+' : '';
+                doAutoClose(t.id, cur, 't3',
+                    `🎯 TARGET 3 HIT — ${t.symbol} @ ₹${fmt(cur)} | P&L: ${sign}₹${fmt(Math.abs(t.pnl))}`, 'green');
+                return;
+            }
+        }
+
+        // 4. T1 — notify once only (no auto-close)
+        const t1Hit = isBuy ? cur >= t.target1 : cur <= t.target1;
+        if (t1Hit && !notifiedT1.has(t.id)) {
+            notifiedT1.add(t.id);
+            showTradeAlert(`🟡 T1 HIT — ${t.symbol} ₹${fmt(cur)} — consider partial profit`, 'green');
+        }
+
+        // 5. T2 — notify once only (no auto-close)
+        if (t.target2) {
+            const t2Hit = isBuy ? cur >= t.target2 : cur <= t.target2;
+            if (t2Hit && !notifiedT2.has(t.id)) {
+                notifiedT2.add(t.id);
+                showTradeAlert(`🟢 T2 HIT — ${t.symbol} ₹${fmt(cur)} — strong profit zone`, 'green');
+            }
+        }
+    });
+}
+
+function doAutoClose(tradeId, exitPrice, result, message, type) {
+    if (autoClosing.has(tradeId)) return;   // already being closed
+    autoClosing.add(tradeId);
+
+    fetch('/api/paper-trade/close/', {
+        method:  'POST',
+        headers: { 'Content-Type': 'application/json', 'X-CSRFToken': getCsrf() },
+        body:    JSON.stringify({ trade_id: tradeId, exit_price: exitPrice, result }),
+    })
+    .then(r => r.json())
+    .then(data => {
+        if (data.status === 'closed') {
+            showTradeAlert(message, type);
+            // Clean up tracking for this trade
+            notifiedT1.delete(tradeId);
+            notifiedT2.delete(tradeId);
+            autoClosing.delete(tradeId);
+            forceLoadTrades();   // refresh table immediately
+        } else {
+            autoClosing.delete(tradeId);
+        }
+    })
+    .catch(() => autoClosing.delete(tradeId));
+}
+// ──────────────────────────────────────────────────────────────────────────────
 
 // Load on page load
 loadTrades();

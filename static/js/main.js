@@ -2053,6 +2053,10 @@ function startPaperTradeMonitor() {
     paperTradeCheckTimer = setInterval(checkPaperTrades, 7000);
 }
 
+// Track which trades already triggered T1/T2 toasts — prevents spam every 7s
+const _t1Notified = new Set();
+const _t2Notified = new Set();
+
 function checkPaperTrades() {
     fetch('/api/paper-trade/list/')
         .then(r => r.json())
@@ -2088,12 +2092,20 @@ function checkPaperTrades() {
                         return;
                     }
                 }
-                // T1 notification only
+                // T1 notification — once only per trade
                 const t1Hit = isBuy ? cur >= t.target1 : cur <= t.target1;
-                if (t1Hit) showToast(`🟡 T1 HIT — ${t.symbol} ₹${fmt(cur)} — consider partial profit`, 'green');
-                // T2 notification only
-                const t2Hit = isBuy ? cur >= t.target2 : cur <= t.target2;
-                if (t2Hit) showToast(`🟢 T2 HIT — ${t.symbol} ₹${fmt(cur)} — strong profit zone`, 'green');
+                if (t1Hit && !_t1Notified.has(t.id)) {
+                    _t1Notified.add(t.id);
+                    showToast(`🟡 T1 HIT — ${t.symbol} ₹${fmt(cur)} — consider partial profit`, 'green');
+                }
+                // T2 notification — once only per trade
+                if (t.target2) {
+                    const t2Hit = isBuy ? cur >= t.target2 : cur <= t.target2;
+                    if (t2Hit && !_t2Notified.has(t.id)) {
+                        _t2Notified.add(t.id);
+                        showToast(`🟢 T2 HIT — ${t.symbol} ₹${fmt(cur)} — strong profit zone`, 'green');
+                    }
+                }
             });
         })
         .catch(() => {});
