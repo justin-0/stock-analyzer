@@ -646,7 +646,7 @@ def score_trade_types(indicators, candle_data):
         return {'intraday':50,'swing':50,'longterm':50,'best':'swing','best_label':'Swing Trade','best_score':50}
 
 
-def generate_signal(indicators, trade_type='swing'):
+def generate_signal(indicators, trade_type='swing', patterns=None):
     try:
         price,rsi,md = indicators['current_price'],indicators['rsi'],indicators['macd_diff']
         e9,e21,s50,s200 = indicators['ema9'],indicators['ema21'],indicators['sma50'],indicators['sma200']
@@ -669,6 +669,31 @@ def generate_signal(indicators, trade_type='swing'):
         if indicators['volume_spike']:
             if bull>bear: bull+=1
             else: bear+=1
+
+        # ── Candle pattern weight ──────────────────────────────────────────
+        if patterns:
+            for p in patterns:
+                conf = p.get('confidence', 0)
+                if conf < 65:
+                    continue          # ignore low-confidence patterns
+                weight = 1 if conf < 75 else 2 if conf < 85 else 3
+
+                if p['type'] == 'bullish':
+                    bull += weight
+                elif p['type'] == 'bearish':
+                    bear += weight
+                # neutral (Doji) → weight 0, signal stays as-is
+
+            # For intraday — candle patterns carry extra weight vs slow indicators
+            if trade_type == 'intraday':
+                bearish_hi = [p for p in patterns if p['type'] == 'bearish' and p.get('confidence', 0) >= 75]
+                bullish_hi = [p for p in patterns if p['type'] == 'bullish' and p.get('confidence', 0) >= 75]
+                for p in bearish_hi:
+                    bear += 2
+                for p in bullish_hi:
+                    bull += 2
+        # ──────────────────────────────────────────────────────────────────
+
         total = bull+bear
         bull_pct = round((bull/total)*100) if total>0 else 50
         if bull>=8:   sig,col='STRONG BUY','success'

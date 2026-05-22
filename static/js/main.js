@@ -630,6 +630,26 @@ function updateSignalBox(signal) {
         </div>
         ${shortSellHtml}
     `;
+
+    // ── Pattern conflict warning ───────────────────────────────────────
+    const warn = signal.pattern_warning;
+    if (warn) {
+        const warnDiv = document.createElement('div');
+        warnDiv.style.cssText = [
+            'margin-top:8px',
+            'padding:9px 12px',
+            'background:rgba(255,196,0,0.08)',
+            'border:1px solid rgba(255,196,0,0.28)',
+            'border-radius:8px',
+            'font-size:11px',
+            'color:var(--yellow)',
+            'line-height:1.6',
+            'animation:fadeIn 0.3s ease',
+        ].join(';');
+        warnDiv.innerHTML = warn;
+        sec.appendChild(warnDiv);
+    }
+    // ──────────────────────────────────────────────────────────────────
 }
 
 // ── PRICE LEVELS ─────────────────────────────────────────────

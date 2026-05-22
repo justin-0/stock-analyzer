@@ -179,11 +179,27 @@ def analyze(request):
     if not indicators:
         return JsonResponse({'error': 'Could not calculate indicators.'}, status=500)
 
-    signal = generate_signal(indicators, trade_type)
+    patterns = detect_candle_patterns(candle_data)
+    signal = generate_signal(indicators, trade_type, patterns=patterns)
     if not signal:
         return JsonResponse({'error': 'Could not generate signal.'}, status=500)
 
-    patterns = detect_candle_patterns(candle_data)
+    # ── Pattern conflict warning ───────────────────────────────────────────
+    if patterns and signal:
+        bearish_hi = [p for p in patterns if p['type'] == 'bearish' and p.get('confidence', 0) >= 75]
+        bullish_hi = [p for p in patterns if p['type'] == 'bullish' and p.get('confidence', 0) >= 75]
+        neutral_hi = [p for p in patterns if p['type'] == 'neutral' and p.get('confidence', 0) >= 75]
+
+        if bearish_hi and signal['signal'] in ['BUY', 'STRONG BUY']:
+            names = ' + '.join(p['name'] for p in bearish_hi[:2])
+            signal['pattern_warning'] = f'⚠️ {names} detected — bearish candles weaken this BUY signal'
+        elif bullish_hi and signal['signal'] in ['SELL', 'STRONG SELL']:
+            names = ' + '.join(p['name'] for p in bullish_hi[:2])
+            signal['pattern_warning'] = f'⚠️ {names} detected — bullish candles weaken this SELL signal'
+        elif neutral_hi and signal['signal'] in ['BUY', 'STRONG BUY']:
+            signal['pattern_warning'] = f'⚠️ {neutral_hi[0]["name"]} detected — market indecision, wait for confirmation'
+    # ──────────────────────────────────────────────────────────────────────
+
     sr = get_support_resistance(candle_data)
     scores = score_trade_types(indicators, candle_data)
 
