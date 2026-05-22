@@ -650,6 +650,29 @@ function updateSignalBox(signal) {
         sec.appendChild(warnDiv);
     }
     // ──────────────────────────────────────────────────────────────────
+
+    // ── Sidebar short suggestion ───────────────────────────────────────
+    const shortSug = signal.suggestion_short || [];
+    if (shortSug.length) {
+        const color = signal.suggestion_full?.color || 'yellow';
+        const bg = color === 'green' ? 'rgba(0,255,136,0.07)'
+                 : color === 'red'   ? 'rgba(255,71,87,0.07)'
+                 :                     'rgba(255,196,0,0.07)';
+        const bc = color === 'green' ? 'rgba(0,255,136,0.22)'
+                 : color === 'red'   ? 'rgba(255,71,87,0.22)'
+                 :                     'rgba(255,196,0,0.22)';
+        const tc = color === 'green' ? 'var(--green)'
+                 : color === 'red'   ? 'var(--red)'
+                 :                     'var(--yellow)';
+        const sugDiv = document.createElement('div');
+        sugDiv.style.cssText = `margin-top:10px;padding:10px 12px;background:${bg};border:1px solid ${bc};border-radius:10px;animation:fadeIn 0.3s ease`;
+        sugDiv.innerHTML = `
+            <div style="font-size:9px;font-weight:800;color:${tc};text-transform:uppercase;letter-spacing:0.08em;margin-bottom:6px">🎯 Smart Suggestion</div>
+            ${shortSug.map(s => `<div style="font-size:11px;color:rgba(255,255,255,0.82);line-height:1.7;margin-bottom:1px">${s}</div>`).join('')}
+        `;
+        sec.appendChild(sugDiv);
+    }
+    // ──────────────────────────────────────────────────────────────────
 }
 
 // ── PRICE LEVELS ─────────────────────────────────────────────
@@ -1976,7 +1999,72 @@ function updateAnalysisDescription(data, symbol) {
             <div class="ads-line" style="margin-top:6px">${entryLine}</div>
         </div>
 
+        ${buildSmartSuggestion(signal, scores?.best_label, data.signal?.suggestion_full)}
+
     `;
+}
+
+// ─────────────────────────────────────────────────────────────
+// SMART SUGGESTION
+// ─────────────────────────────────────────────────────────────
+
+function buildSmartSuggestion(signal, tradeLabel, sug) {
+    if (!sug || !sug.title) return '';
+
+    const color = sug.color || 'yellow';
+    const bg = color === 'green' ? 'rgba(0,255,136,0.05)'
+             : color === 'red'   ? 'rgba(255,71,87,0.05)'
+             :                     'rgba(255,196,0,0.05)';
+    const bc = color === 'green' ? 'rgba(0,255,136,0.18)'
+             : color === 'red'   ? 'rgba(255,71,87,0.18)'
+             :                     'rgba(255,196,0,0.18)';
+    const tc = color === 'green' ? 'var(--green)'
+             : color === 'red'   ? 'var(--red)'
+             :                     'var(--yellow)';
+    const emoji = color === 'green' ? '✅' : color === 'red' ? '🔴' : '⏳';
+
+    const situationHTML = (sug.situation || []).map(s =>
+        `<div class="ads-point"><span class="ads-dot">📍</span><span class="ads-text">${s}</span></div>`
+    ).join('');
+
+    const actionHTML = (sug.action || []).map((s, i) =>
+        `<div class="ads-point"><span class="ads-dot" style="color:${tc};font-weight:800">${i + 1}.</span><span class="ads-text"><b>${s}</b></span></div>`
+    ).join('');
+
+    const planHTML = sug.plan ? `
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-top:12px">
+            <div style="background:rgba(255,255,255,0.03);border:1px solid var(--border);border-radius:8px;padding:8px 10px">
+                <div style="font-size:9px;color:var(--muted);font-weight:700;margin-bottom:3px">ENTRY</div>
+                <div style="font-size:13px;font-weight:800;font-family:'Fira Code',monospace;color:#fff">${sug.plan.entry}</div>
+            </div>
+            <div style="background:rgba(255,71,87,0.06);border:1px solid rgba(255,71,87,0.18);border-radius:8px;padding:8px 10px">
+                <div style="font-size:9px;color:var(--red);font-weight:700;margin-bottom:3px">STOP LOSS</div>
+                <div style="font-size:13px;font-weight:800;font-family:'Fira Code',monospace;color:var(--red)">${sug.plan.sl}</div>
+            </div>
+            <div style="background:rgba(255,196,0,0.05);border:1px solid rgba(255,196,0,0.18);border-radius:8px;padding:8px 10px">
+                <div style="font-size:9px;color:var(--yellow);font-weight:700;margin-bottom:3px">TARGET 1</div>
+                <div style="font-size:13px;font-weight:800;font-family:'Fira Code',monospace;color:var(--yellow)">${sug.plan.target1}</div>
+            </div>
+            <div style="background:rgba(0,255,136,0.05);border:1px solid rgba(0,255,136,0.18);border-radius:8px;padding:8px 10px">
+                <div style="font-size:9px;color:var(--green);font-weight:700;margin-bottom:3px">TARGET 2</div>
+                <div style="font-size:13px;font-weight:800;font-family:'Fira Code',monospace;color:var(--green)">${sug.plan.target2}</div>
+            </div>
+        </div>` : '';
+
+    return `
+        <div class="ads-block" style="border-color:${bc};background:${bg};margin-top:6px">
+            <div class="ads-block-title" style="color:${tc}">${emoji} 🎯 Smart Trading Suggestion — ${tradeLabel || 'Trade'}</div>
+            <div class="ads-line" style="font-size:13px;font-weight:700;color:#fff;margin-bottom:3px">${sug.title}</div>
+            <div class="ads-line" style="color:var(--muted);margin-bottom:10px;font-style:italic">${sug.subtitle}</div>
+
+            <div style="font-size:9px;font-weight:800;color:var(--muted);text-transform:uppercase;letter-spacing:0.07em;margin-bottom:6px">📍 Situation</div>
+            ${situationHTML}
+
+            <div style="font-size:9px;font-weight:800;color:${tc};text-transform:uppercase;letter-spacing:0.07em;margin:10px 0 6px">⚡ What To Do Right Now</div>
+            ${actionHTML}
+
+            ${planHTML}
+        </div>`;
 }
 
 // ─────────────────────────────────────────────────────────────

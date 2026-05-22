@@ -184,23 +184,306 @@ def analyze(request):
     if not signal:
         return JsonResponse({'error': 'Could not generate signal.'}, status=500)
 
-    # ── Pattern conflict warning ───────────────────────────────────────────
-    if patterns and signal:
-        bearish_hi = [p for p in patterns if p['type'] == 'bearish' and p.get('confidence', 0) >= 75]
-        bullish_hi = [p for p in patterns if p['type'] == 'bullish' and p.get('confidence', 0) >= 75]
-        neutral_hi = [p for p in patterns if p['type'] == 'neutral' and p.get('confidence', 0) >= 75]
-
-        if bearish_hi and signal['signal'] in ['BUY', 'STRONG BUY']:
-            names = ' + '.join(p['name'] for p in bearish_hi[:2])
-            signal['pattern_warning'] = f'⚠️ {names} detected — bearish candles weaken this BUY signal'
-        elif bullish_hi and signal['signal'] in ['SELL', 'STRONG SELL']:
-            names = ' + '.join(p['name'] for p in bullish_hi[:2])
-            signal['pattern_warning'] = f'⚠️ {names} detected — bullish candles weaken this SELL signal'
-        elif neutral_hi and signal['signal'] in ['BUY', 'STRONG BUY']:
-            signal['pattern_warning'] = f'⚠️ {neutral_hi[0]["name"]} detected — market indecision, wait for confirmation'
-    # ──────────────────────────────────────────────────────────────────────
-
+    # ── Smart Suggestion Generator ────────────────────────────────────────
     sr = get_support_resistance(candle_data)
+
+    if patterns and signal:
+        bearish = [p for p in patterns if p['type'] == 'bearish' and p.get('confidence', 0) >= 75]
+        bullish = [p for p in patterns if p['type'] == 'bullish' and p.get('confidence', 0) >= 75]
+        neutral = [p for p in patterns if p['type'] == 'neutral'  and p.get('confidence', 0) >= 75]
+
+        sig_str   = signal['signal']
+        price     = indicators['current_price']
+        sl        = signal['stop_loss']
+        t1        = signal['target1']
+        t2        = signal['target2']
+        res_list  = sr.get('resistance', [])
+        sup_list  = sr.get('support', [])
+        nearest_res = (res_list[0]['price'] if isinstance(res_list[0], dict) else res_list[0]) if res_list else None
+        nearest_sup = (sup_list[0]['price'] if isinstance(sup_list[0], dict) else sup_list[0]) if sup_list else None
+
+        def fmt_p(v): return f'₹{v:,.2f}' if v else '—'
+
+        suggestion_short = []
+        suggestion_full  = {}
+
+        # ── INTRADAY ──────────────────────────────────────────────────────
+        if trade_type == 'intraday':
+            if sig_str in ['STRONG BUY', 'BUY'] and bearish:
+                res_txt = fmt_p(nearest_res) if nearest_res else 'resistance'
+                sup_txt = fmt_p(nearest_sup) if nearest_sup else 'support'
+                suggestion_short = [
+                    f'⏳ Wait for {res_txt} breakout before buying',
+                    f'⚠️ Mixed candles — confirm with volume spike',
+                ]
+                suggestion_full = {
+                    'title':    f'{sig_str} signal but mixed candle patterns detected',
+                    'subtitle': 'Do not enter immediately — wait for confirmation',
+                    'situation': [
+                        f'Price {fmt_p(price)} is near resistance {res_txt}',
+                        f'{bearish[0]["name"]} detected — bears are active short term',
+                        f'{"+ " + bullish[0]["name"] + " also detected — bulls trying to recover" if bullish else "No bullish patterns to confirm entry"}',
+                        'Mixed signals — blind entry is risky right now',
+                    ],
+                    'action': [
+                        'DO NOT buy immediately',
+                        f'Wait for price to break ABOVE {res_txt} with volume',
+                        f'If volume spikes when crossing {res_txt} → BUY',
+                        f'If price falls below {sup_txt} → AVOID today',
+                    ],
+                    'plan': {'entry': f'{res_txt}+' if nearest_res else fmt_p(price), 'sl': fmt_p(sl), 'target1': fmt_p(t1), 'target2': fmt_p(t2)},
+                    'color': 'yellow',
+                }
+                signal['pattern_warning'] = f'⚠️ {bearish[0]["name"]} detected — bearish candles weaken this {sig_str} signal'
+
+            elif sig_str in ['STRONG BUY', 'BUY'] and not bearish:
+                suggestion_short = [
+                    f'✅ Clean BUY signal — enter near {fmt_p(price)}',
+                    f'🎯 Stop Loss: {fmt_p(sl)} | Target: {fmt_p(t1)}',
+                ]
+                suggestion_full = {
+                    'title':    'Clean BUY signal — good intraday entry',
+                    'subtitle': 'Indicators and candles are aligned bullish',
+                    'situation': [
+                        f'Price {fmt_p(price)} showing bullish momentum',
+                        f'{"Bullish pattern: " + bullish[0]["name"] + " confirms entry" if bullish else "All indicators bullish — no conflicting candles"}',
+                        'EMA Golden Cross active — short term uptrend',
+                        'No bearish candle patterns to worry about',
+                    ],
+                    'action': [
+                        f'BUY near current price {fmt_p(price)}',
+                        f'Set stop loss at {fmt_p(sl)} immediately after buying',
+                        f'Book 50% profit at Target 1 {fmt_p(t1)}',
+                        f'Let rest run to Target 2 {fmt_p(t2)}',
+                        'Exit ALL positions before 3:15 PM IST',
+                    ],
+                    'plan': {'entry': fmt_p(price), 'sl': fmt_p(sl), 'target1': fmt_p(t1), 'target2': fmt_p(t2)},
+                    'color': 'green',
+                }
+
+            elif sig_str == 'WAIT':
+                res_txt = fmt_p(nearest_res) if nearest_res else 'resistance'
+                sup_txt = fmt_p(nearest_sup) if nearest_sup else 'support'
+                suggestion_short = [
+                    '⏳ No clear direction — stay out today',
+                    f'📍 Watch {res_txt} for breakout signal',
+                ]
+                suggestion_full = {
+                    'title':    'Mixed signals — no clear intraday trade today',
+                    'subtitle': 'Patience is the best strategy right now',
+                    'situation': [
+                        'Indicators are neutral — bulls and bears balanced',
+                        f'{"Neutral pattern " + neutral[0]["name"] + " detected — market undecided" if neutral else "No strong pattern detected"}',
+                        f'Price between support {sup_txt} and resistance {res_txt}',
+                    ],
+                    'action': [
+                        'DO NOT trade right now',
+                        f'Set alert at {res_txt} — if price breaks above with volume → BUY',
+                        f'Set alert at {sup_txt} — if price breaks below → SHORT',
+                        'Wait for a clear candle pattern to form',
+                        'Best time to re-check: after 1:00 PM IST',
+                    ],
+                    'plan': None,
+                    'color': 'yellow',
+                }
+
+            elif sig_str in ['SELL', 'STRONG SELL']:
+                suggestion_short = [
+                    '🔴 Bearish — avoid buying today',
+                    f'📉 Price may fall to {fmt_p(nearest_sup)}',
+                ]
+                suggestion_full = {
+                    'title':    'Bearish signal — do not buy today',
+                    'subtitle': 'Sellers are in control of this stock right now',
+                    'situation': [
+                        f'Price {fmt_p(price)} showing bearish momentum',
+                        f'{"Bearish pattern: " + bearish[0]["name"] if bearish else "Multiple bearish indicators active"}',
+                        'EMA Death Cross or price below key moving averages',
+                    ],
+                    'action': [
+                        'DO NOT buy this stock today',
+                        f'If you already hold — consider exiting at {fmt_p(price)}',
+                        'Wait for signal to turn BUY before entering again',
+                        f'Watch support at {fmt_p(nearest_sup)} for possible bounce',
+                    ],
+                    'plan': None,
+                    'color': 'red',
+                }
+
+        # ── SWING ─────────────────────────────────────────────────────────
+        elif trade_type == 'swing':
+            if sig_str in ['STRONG BUY', 'BUY'] and not bearish:
+                suggestion_short = [
+                    f'✅ Good swing entry — buy on dip to {fmt_p(nearest_sup)}',
+                    f'🎯 Target {fmt_p(t2)} in 5-10 days',
+                ]
+                suggestion_full = {
+                    'title':    'Good swing trade setup',
+                    'subtitle': 'Buy on the next dip for a better entry price',
+                    'situation': [
+                        'Strong bullish trend with clean indicators',
+                        f'{"Pattern: " + bullish[0]["name"] + " confirms bullish reversal" if bullish else "All indicators aligned bullish"}',
+                        f'Price {fmt_p(price)} above key moving averages',
+                    ],
+                    'action': [
+                        f'Option 1: BUY NOW at {fmt_p(price)} — momentum entry',
+                        f'Option 2: Wait for dip to {fmt_p(nearest_sup)} — safer entry',
+                        f'Set stop loss at {fmt_p(sl)} — do not move it lower',
+                        f'Hold for 5-10 days targeting {fmt_p(t1)} then {fmt_p(t2)}',
+                        'Book 50% profit at Target 1, let rest run',
+                    ],
+                    'plan': {'entry': fmt_p(price), 'sl': fmt_p(sl), 'target1': fmt_p(t1), 'target2': fmt_p(t2)},
+                    'color': 'green',
+                }
+
+            elif sig_str in ['STRONG BUY', 'BUY'] and bearish:
+                suggestion_short = [
+                    '⏳ Wait for bearish candles to resolve',
+                    f'📍 Buy only if price holds above {fmt_p(nearest_sup)}',
+                ]
+                suggestion_full = {
+                    'title':    'BUY signal but short-term bearish candles present',
+                    'subtitle': 'Wait for candle confirmation before entering swing trade',
+                    'situation': [
+                        'Long term trend is bullish — indicators agree',
+                        f'But {bearish[0]["name"]} detected — short term selling pressure',
+                        'This is likely a pullback within an uptrend',
+                    ],
+                    'action': [
+                        'DO NOT enter today — wait for pullback to finish',
+                        f'Watch support at {fmt_p(nearest_sup)} — if price holds here → BUY',
+                        'Wait for a bullish candle (green close) to confirm reversal',
+                        'Enter tomorrow or day after if candles turn bullish',
+                        f'Stop Loss: {fmt_p(sl)} | Target: {fmt_p(t1)} → {fmt_p(t2)}',
+                    ],
+                    'plan': {'entry': f'{fmt_p(nearest_sup)} area', 'sl': fmt_p(sl), 'target1': fmt_p(t1), 'target2': fmt_p(t2)},
+                    'color': 'yellow',
+                }
+                signal['pattern_warning'] = f'⚠️ {bearish[0]["name"]} detected — bearish candles weaken this {sig_str} signal'
+
+            elif sig_str == 'WAIT':
+                suggestion_short = [
+                    '⏳ No swing setup yet — monitor daily',
+                    f'📍 Alert at {fmt_p(nearest_res)} for breakout',
+                ]
+                suggestion_full = {
+                    'title':    'No clear swing trade setup currently',
+                    'subtitle': 'Monitor and wait for a clear signal',
+                    'situation': [
+                        f'Stock is consolidating between {fmt_p(nearest_sup)} and {fmt_p(nearest_res)}',
+                        'No strong pattern or indicator alignment',
+                        'Market is undecided on this stock',
+                    ],
+                    'action': [
+                        f'Set price alert at {fmt_p(nearest_res)} — breakout above = BUY',
+                        f'Set price alert at {fmt_p(nearest_sup)} — breakdown below = SELL',
+                        'Check again tomorrow — swing setups develop over days',
+                        'Look at screener for better setups elsewhere',
+                    ],
+                    'plan': None,
+                    'color': 'yellow',
+                }
+
+            elif sig_str in ['SELL', 'STRONG SELL']:
+                suggestion_short = [
+                    '🔴 Avoid swing trade — bearish trend',
+                    '📉 Wait for reversal signal before entering',
+                ]
+                suggestion_full = {
+                    'title':    'Bearish swing — avoid buying',
+                    'subtitle': 'Wait for trend reversal before entering',
+                    'situation': [
+                        'Stock is in a downtrend — lower highs and lower lows',
+                        f'{"Pattern: " + bearish[0]["name"] + " confirms selling pressure" if bearish else "Multiple indicators bearish"}',
+                        f'Risk of further decline to {fmt_p(nearest_sup)}',
+                    ],
+                    'action': [
+                        'DO NOT buy this stock for swing trade',
+                        f'If holding — consider cutting losses at {fmt_p(price)}',
+                        'Wait for MACD to cross above zero AND price above EMA21',
+                        'Re-check after 1 week for reversal setup',
+                    ],
+                    'plan': None,
+                    'color': 'red',
+                }
+
+        # ── LONG TERM ─────────────────────────────────────────────────────
+        elif trade_type == 'longterm':
+            if sig_str in ['STRONG BUY', 'BUY']:
+                suggestion_short = [
+                    '✅ Good long term entry — accumulate gradually',
+                    f'🎯 Target {fmt_p(t2)}+ over months',
+                ]
+                suggestion_full = {
+                    'title':    'Good long term investment opportunity',
+                    'subtitle': 'Buy in multiple parts — do not invest all at once',
+                    'situation': [
+                        'Long term trend is BULLISH — price above SMA200',
+                        'Strong setup based on technical indicators',
+                        f'{"Short term volatility from " + bearish[0]["name"] + " is normal in long term" if bearish else "Clean bullish setup across all timeframes"}',
+                    ],
+                    'action': [
+                        f'Part 1: Buy 30% of planned quantity NOW at {fmt_p(price)}',
+                        f'Part 2: Buy 40% on next dip to {fmt_p(nearest_sup)}',
+                        f'Part 3: Buy remaining 30% if price breaks {fmt_p(nearest_res)}',
+                        'Hold for 3-12 months',
+                        f'Stop Loss: {fmt_p(sl)} — exit only if this breaks on weekly chart',
+                    ],
+                    'plan': {'entry': f'{fmt_p(price)} in 3 parts', 'sl': fmt_p(sl), 'target1': fmt_p(t1), 'target2': fmt_p(t2)},
+                    'color': 'green',
+                }
+
+            elif sig_str == 'WAIT':
+                suggestion_short = [
+                    '⏳ Not the best entry point — wait for dip',
+                    f'📍 Better entry near {fmt_p(nearest_sup)}',
+                ]
+                suggestion_full = {
+                    'title':    'Wait for a better long term entry point',
+                    'subtitle': 'Good stock but not the right price to enter now',
+                    'situation': [
+                        'Stock may be in a consolidation or minor pullback',
+                        'Long term outlook may still be positive',
+                        f'Current price {fmt_p(price)} is not at a strong support level',
+                    ],
+                    'action': [
+                        f'Wait for price to come to support {fmt_p(nearest_sup)}',
+                        f'Set a price alert at {fmt_p(nearest_sup)}',
+                        'Study the company fundamentals while waiting',
+                        f'Breakout above {fmt_p(nearest_res)} with volume is also a valid entry',
+                    ],
+                    'plan': None,
+                    'color': 'yellow',
+                }
+
+            elif sig_str in ['SELL', 'STRONG SELL']:
+                suggestion_short = [
+                    '🔴 Poor long term entry — stock in downtrend',
+                    '⏳ Wait for monthly chart to turn bullish',
+                ]
+                suggestion_full = {
+                    'title':    'Avoid long term investment right now',
+                    'subtitle': 'Technical indicators suggest ongoing weakness',
+                    'situation': [
+                        'Stock below key long term moving averages',
+                        f'{"Bearish pattern " + bearish[0]["name"] + " on recent candles" if bearish else "Bearish indicators across multiple timeframes"}',
+                        'Risk of further downside before recovery',
+                    ],
+                    'action': [
+                        'DO NOT invest for long term right now',
+                        'Wait for monthly MACD to turn positive',
+                        'Wait for price to reclaim SMA200',
+                        'Re-evaluate after 1-3 months',
+                        'Look for other stocks with better setups in the screener',
+                    ],
+                    'plan': None,
+                    'color': 'red',
+                }
+
+        signal['suggestion_short'] = suggestion_short
+        signal['suggestion_full']  = suggestion_full
+    # ─────────────────────────────────────────────────────────────────────
+
     scores = score_trade_types(indicators, candle_data)
 
     try:
