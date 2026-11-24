@@ -1,5 +1,6 @@
 from pathlib import Path
 from dotenv import load_dotenv
+from django.core.exceptions import ImproperlyConfigured
 import dj_database_url
 import os
 
@@ -7,11 +8,23 @@ load_dotenv()
 
 BASE_DIR = Path(__file__).resolve().parent.parent
 
-SECRET_KEY = os.getenv('SECRET_KEY', 'django-insecure-e%x13%)3%l)07q%_-ih4$l)x!#-#y1_(%2-tx4gzb3mf(&9%e#')
+# Railway sets RAILWAY_ENVIRONMENT on every deploy. On Railway we default to
+# production-safe settings; locally we default to DEBUG for development.
+ON_RAILWAY = bool(os.getenv('RAILWAY_ENVIRONMENT'))
 
-DEBUG = os.getenv('DEBUG', 'True').lower() in ('true', '1', 'yes')
+DEBUG = os.getenv('DEBUG', 'False' if ON_RAILWAY else 'True').lower() in ('true', '1', 'yes')
 
-ALLOWED_HOSTS = ['*']
+SECRET_KEY = os.getenv('SECRET_KEY', '')
+if not SECRET_KEY:
+    if not DEBUG:
+        raise ImproperlyConfigured('SECRET_KEY environment variable must be set in production.')
+    SECRET_KEY = 'django-insecure-local-dev-only-key-do-not-use-in-production'
+
+ALLOWED_HOSTS = [
+    'localhost', '127.0.0.1',
+    '.railway.app', '.up.railway.app',
+    'healthcheck.railway.app',   # Railway health checks
+] + [h.strip() for h in os.getenv('ALLOWED_HOSTS', '').split(',') if h.strip()]
 
 INSTALLED_APPS = [
     'django.contrib.admin',
@@ -88,7 +101,12 @@ USE_TZ = True
 STATIC_URL = '/static/'
 STATICFILES_DIRS = [BASE_DIR / 'static']
 STATIC_ROOT = BASE_DIR / 'staticfiles'
-STATICFILES_STORAGE = 'whitenoise.storage.CompressedManifestStaticFilesStorage'
+# STORAGES replaces STATICFILES_STORAGE (removed in Django 5.1 — the old
+# setting was silently ignored on Django 6, so WhiteNoise compression was off).
+STORAGES = {
+    'default': {'BACKEND': 'django.core.files.storage.FileSystemStorage'},
+    'staticfiles': {'BACKEND': 'whitenoise.storage.CompressedManifestStaticFilesStorage'},
+}
 
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 
@@ -101,6 +119,34 @@ ALPHA_VANTAGE_KEY   = os.getenv('ALPHA_VANTAGE_KEY', '')
 UPSTOX_ACCESS_TOKEN = os.getenv('UPSTOX_ACCESS_TOKEN', '')
 
 CACHE_TIMEOUT = int(os.getenv('CACHE_TIMEOUT', '300'))
+
+# ── EMAIL (password reset) ────────────────────────────────────
+# Set EMAIL_HOST etc. in the environment to send real mail (e.g. Gmail SMTP
+# with an app password). Without EMAIL_HOST, emails are printed to the console.
+EMAIL_HOST          = os.getenv('EMAIL_HOST', '')
+EMAIL_PORT          = int(os.getenv('EMAIL_PORT', '587'))
+EMAIL_HOST_USER     = os.getenv('EMAIL_HOST_USER', '')
+EMAIL_HOST_PASSWORD = os.getenv('EMAIL_HOST_PASSWORD', '')
+EMAIL_USE_TLS       = os.getenv('EMAIL_USE_TLS', 'True').lower() in ('true', '1', 'yes')
+EMAIL_BACKEND = (
+    'django.core.mail.backends.smtp.EmailBackend' if EMAIL_HOST
+    else 'django.core.mail.backends.console.EmailBackend'
+)
+DEFAULT_FROM_EMAIL  = os.getenv('DEFAULT_FROM_EMAIL', EMAIL_HOST_USER or 'noreply@stockanalyzer.local')
+PASSWORD_RESET_TIMEOUT = 60 * 60  # reset links expire after 1 hour
+
+# Railway terminates HTTPS at its proxy; trust its header so reset links use https://
+SECURE_PROXY_SSL_HEADER = ('HTTP_X_FORWARDED_PROTO', 'https')
+
+# ── PRODUCTION SECURITY ───────────────────────────────────────
+if not DEBUG:
+    SESSION_COOKIE_SECURE = True      # cookies only sent over HTTPS
+    CSRF_COOKIE_SECURE    = True
+    SECURE_HSTS_SECONDS   = int(os.getenv('SECURE_HSTS_SECONDS', '3600'))  # start small; raise once stable
+    SECURE_CONTENT_TYPE_NOSNIFF = True
+    SECURE_REFERRER_POLICY = 'same-origin'
+    # Off by default: Railway already serves HTTPS, and redirecting can break its health checks.
+    SECURE_SSL_REDIRECT = os.getenv('SECURE_SSL_REDIRECT', 'False').lower() in ('true', '1', 'yes')
 
 # ── CSRF ──────────────────────────────────────────────────────
 CSRF_TRUSTED_ORIGINS = [

@@ -1,6 +1,6 @@
 from django.shortcuts import render, redirect, get_object_or_404
 from django.http import JsonResponse
-from django.views.decorators.csrf import csrf_exempt
+from django.views.decorators.csrf import ensure_csrf_cookie
 from django.contrib.auth import authenticate, login, logout
 from django.contrib.auth.decorators import login_required
 from django.contrib.auth.models import User
@@ -35,6 +35,12 @@ def is_admin_user(user):
         user.is_superuser or
         (hasattr(user, 'profile') and user.profile.is_admin)
     )
+
+
+def _is_http_link(url):
+    """RSS links go straight into <a href>; only allow real web links
+    (blocks javascript:, data: etc. from a compromised feed)."""
+    return url.lower().startswith(('http://', 'https://'))
 
 
 # ─── Auth Views ───────────────────────────────────────────
@@ -130,6 +136,7 @@ def register_view(request):
 
 # ─── Main Dashboard ────────────────────────────────────────
 
+@ensure_csrf_cookie
 @login_required(login_url='login')
 def dashboard(request):
     if is_admin_user(request.user):
@@ -533,7 +540,6 @@ def get_candles(request):
     return JsonResponse(candle_data)
 
 
-@csrf_exempt
 @login_required(login_url='login')
 def toggle_watchlist(request):
     if request.method != 'POST':
@@ -587,7 +593,6 @@ def watchlist_signals(request):
     return JsonResponse({'watchlist': results})
 
 
-@csrf_exempt
 @login_required(login_url='login')
 def save_upstox_token(request):
     """Save user's personal Upstox token to their profile"""
@@ -662,11 +667,11 @@ def stock_news(request):
             r = req.get(feed_url, headers={'User-Agent': 'Mozilla/5.0'}, timeout=7)
             root = ET.fromstring(r.content)
             channel = root.find('channel')
-            items = channel.findall('item') if channel else []
+            items = channel.findall('item') if channel is not None else []
             for item in items[:20]:
                 title = item.findtext('title', '').strip()
                 link = item.findtext('link', '').strip()
-                if not title or not link:
+                if not title or not link or not _is_http_link(link):
                     continue
                 title_clean = re.sub(r'&#\d+;|&amp;|&lt;|&gt;', '', title).strip()
                 title_lower = title_clean.lower()
@@ -765,10 +770,24 @@ def admin_user_detail(request, user_id):
     return render(request, 'stocks/admin_user_detail.html', context)
 
 
+def _get_manageable_user(request, user_id):
+    """Users an admin may approve/reject/deactivate: never superusers, never
+    themselves, and only superusers may act on other admins."""
+    target = get_object_or_404(User, id=user_id, is_superuser=False)
+    if target.id == request.user.id:
+        return None
+    target_is_admin = hasattr(target, 'profile') and target.profile.is_admin
+    if target_is_admin and not request.user.is_superuser:
+        return None
+    return target
+
+
 @admin_required
 def admin_approve_user(request, user_id):
     if request.method == 'POST':
-        target_user = get_object_or_404(User, id=user_id)
+        target_user = _get_manageable_user(request, user_id)
+        if target_user is None:
+            return redirect('admin_users')
         target_user.is_active = True
         target_user.save()
         log_activity(request.user, 'analyze', detail=f'Approved user {target_user.username}', request=request)
@@ -778,7 +797,9 @@ def admin_approve_user(request, user_id):
 @admin_required
 def admin_reject_user(request, user_id):
     if request.method == 'POST':
-        target_user = get_object_or_404(User, id=user_id)
+        target_user = _get_manageable_user(request, user_id)
+        if target_user is None:
+            return redirect('admin_users')
         username = target_user.username
         target_user.delete()
         log_activity(request.user, 'analyze', detail=f'Rejected/deleted user {username}', request=request)
@@ -788,7 +809,9 @@ def admin_reject_user(request, user_id):
 @admin_required
 def admin_deactivate_user(request, user_id):
     if request.method == 'POST':
-        target_user = get_object_or_404(User, id=user_id)
+        target_user = _get_manageable_user(request, user_id)
+        if target_user is None:
+            return redirect('admin_users')
         target_user.is_active = False
         target_user.save()
     return redirect('admin_users')
@@ -870,12 +893,12 @@ def market_news(request):
             r = req.get(feed_url, headers={'User-Agent': 'Mozilla/5.0'}, timeout=7)
             root = ET.fromstring(r.content)
             channel = root.find('channel')
-            items = channel.findall('item') if channel else []
+            items = channel.findall('item') if channel is not None else []
             for item in items[:8]:
                 title = item.findtext('title', '').strip()
                 link = item.findtext('link', '').strip()
                 pub = item.findtext('pubDate', '').strip()
-                if not title or not link:
+                if not title or not link or not _is_http_link(link):
                     continue
                 title = re.sub(r'&#\d+;|&amp;|&lt;|&gt;', '', title).strip()
                 dt = parse_pub_date(pub)
@@ -1120,44 +1143,6 @@ def live_price(request):
     return JsonResponse(result)
 
 @login_required(login_url='login')
-def ws_token(request):
-    """Return the Upstox WebSocket auth URL + access token for front-end streaming.
-    Uses user's personal token if saved, otherwise falls back to .env token.
-    """
-    profile     = getattr(request.user, 'profile', None)
-    user_token  = getattr(profile, 'upstox_token', '').strip()
-    access_token = user_token or getattr(settings, 'UPSTOX_ACCESS_TOKEN', '')
-
-    if not access_token:
-        return JsonResponse({'error': 'No Upstox token configured'}, status=503)
-
-    try:
-        import requests as req
-        headers = {
-            'Authorization': f'Bearer {access_token}',
-            'Accept': 'application/json',
-        }
-        r = req.get(
-            'https://api.upstox.com/v2/feed/market-data-feed/authorize',
-            headers=headers,
-            timeout=5,
-        )
-        if r.status_code != 200:
-            return JsonResponse({'error': f'Upstox auth failed: {r.status_code}'}, status=502)
-        data = r.json()
-        ws_url = data.get('data', {}).get('authorizedRedirectUri', '')
-        if not ws_url:
-            return JsonResponse({'error': 'No WebSocket URL from Upstox'}, status=502)
-        return JsonResponse({'ws_url': ws_url, 'token': access_token})
-    except Exception as e:
-        return JsonResponse({'error': str(e)}, status=500)
-    
-
-
-
-
-@csrf_exempt
-@login_required(login_url='login')
 def paper_trade_open(request):
     if request.method != 'POST':
         return JsonResponse({'error': 'Invalid method'}, status=405)
@@ -1166,18 +1151,37 @@ def paper_trade_open(request):
     except Exception:
         return JsonResponse({'error': 'Invalid JSON'}, status=400)
 
-    symbol     = data.get('symbol', '').upper().strip()
+    symbol     = str(data.get('symbol', '')).upper().strip()
     direction  = data.get('direction', 'buy')
     trade_type = data.get('trade_type', 'swing')
-    entry      = float(data.get('entry_price', 0))
-    sl         = float(data.get('stop_loss', 0))
-    t1         = float(data.get('target1', 0))
-    t2         = float(data.get('target2', 0))
-    t3         = float(data.get('target3', 0)) if data.get('target3') else None
-    qty        = int(data.get('quantity', 1))
+    try:
+        entry = float(data.get('entry_price') or 0)
+        sl    = float(data.get('stop_loss') or 0)
+        t1    = float(data.get('target1') or 0)
+        t2    = float(data.get('target2') or 0)
+        t3    = float(data['target3']) if data.get('target3') else None
+        qty   = int(data.get('quantity', 1))
+    except (TypeError, ValueError):
+        return JsonResponse({'error': 'Prices and quantity must be numbers'}, status=400)
 
-    if not symbol or not entry:
+    if not symbol or len(symbol) > 20 or entry <= 0 or sl <= 0 or t1 <= 0:
         return JsonResponse({'error': 'Missing required fields'}, status=400)
+    if direction not in ('buy', 'sell'):
+        return JsonResponse({'error': 'Direction must be buy or sell'}, status=400)
+    if trade_type not in ('intraday', 'swing', 'longterm'):
+        return JsonResponse({'error': 'Invalid trade type'}, status=400)
+    if qty < 1:
+        return JsonResponse({'error': 'Quantity must be at least 1'}, status=400)
+
+    # Levels must sit on the correct side of entry, otherwise the trade
+    # would be auto-closed as "SL hit" on the very first price check.
+    targets = [t for t in (t1, t2 or None, t3) if t]
+    if direction == 'buy':
+        if not (sl < entry and all(t > entry for t in targets)):
+            return JsonResponse({'error': 'For BUY: stop loss must be below entry and targets above entry'}, status=400)
+    else:
+        if not (sl > entry and all(t < entry for t in targets)):
+            return JsonResponse({'error': 'For SHORT: stop loss must be above entry and targets below entry'}, status=400)
 
     trade = PaperTrade.objects.create(
         user=request.user, symbol=symbol, direction=direction,
@@ -1188,7 +1192,6 @@ def paper_trade_open(request):
     return JsonResponse({'status': 'opened', 'trade_id': trade.id})
 
 
-@csrf_exempt
 @login_required(login_url='login')
 def paper_trade_close(request):
     if request.method != 'POST':
@@ -1199,8 +1202,15 @@ def paper_trade_close(request):
         return JsonResponse({'error': 'Invalid JSON'}, status=400)
 
     trade_id   = data.get('trade_id')
-    exit_price = float(data.get('exit_price', 0))
-    result     = data.get('result', 'manual')
+    try:
+        exit_price = float(data.get('exit_price') or 0)
+    except (TypeError, ValueError):
+        exit_price = 0
+    if exit_price <= 0:
+        return JsonResponse({'error': 'Invalid exit price'}, status=400)
+    result = data.get('result', 'manual')
+    if result not in dict(PaperTrade.RESULT_CHOICES) or result == 'pending':
+        result = 'manual'
 
     try:
         trade = PaperTrade.objects.get(id=trade_id, user=request.user, status='active')
@@ -1276,6 +1286,7 @@ def paper_trade_list(request):
     })
 
 
+@ensure_csrf_cookie
 @login_required(login_url='login')
 def trades_view(request):
     return render(request, 'stocks/trades.html')

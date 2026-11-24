@@ -1416,7 +1416,7 @@ async function fetchNews() {
         }
 
         feed.innerHTML = data.news.map(item => `
-            <a class="news-item" href="${escapeHtml(item.link)}" target="_blank" rel="noopener noreferrer">
+            <a class="news-item" href="${/^https?:\/\//i.test(item.link || '') ? escapeHtml(item.link) : '#'}" target="_blank" rel="noopener noreferrer">
                 <div class="news-item-meta">
                     <span class="news-source">${escapeHtml(item.source)}</span>
                     <span class="news-dot"></span>

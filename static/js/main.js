@@ -1192,6 +1192,20 @@ function removeFromWatchlistSidebar(symbol) {
 // STOCK NEWS
 // ─────────────────────────────────────────────────────────────
 
+// Escape text from external sources (RSS feeds) before putting it in innerHTML
+function escapeHtml(str) {
+    if (str === null || str === undefined) return '';
+    return String(str)
+        .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+}
+
+// Only allow http(s) links in href — blocks javascript:/data: URLs
+function safeUrl(url) {
+    const u = String(url || '').trim();
+    return /^https?:\/\//i.test(u) ? escapeHtml(u) : '#';
+}
+
 function fetchStockNews(symbol) {
     const sec = document.getElementById('newsContent');
     if (sec) sec.innerHTML = '<div class="placeholder-text">Loading news...</div>';
@@ -1202,16 +1216,16 @@ function fetchStockNews(symbol) {
             if (!sec) return;
             const news = data.news || [];
             if (!news.length) {
-                sec.innerHTML = `<div class="placeholder-text">No news found for ${symbol}</div>`;
+                sec.innerHTML = `<div class="placeholder-text">No news found for ${escapeHtml(symbol)}</div>`;
                 return;
             }
             sec.innerHTML = news.map(n => `
-                <a class="news-mini-item" href="${n.link}" target="_blank" rel="noopener">
+                <a class="news-mini-item" href="${safeUrl(n.link)}" target="_blank" rel="noopener noreferrer">
                     <div class="nmi-meta">
-                        <span class="nmi-source">${n.source}</span>
-                        <span class="nmi-time">${n.time || ''}</span>
+                        <span class="nmi-source">${escapeHtml(n.source)}</span>
+                        <span class="nmi-time">${escapeHtml(n.time)}</span>
                     </div>
-                    <div class="nmi-title">${n.title}</div>
+                    <div class="nmi-title">${escapeHtml(n.title)}</div>
                 </a>
             `).join('');
         })
@@ -2098,6 +2112,12 @@ function openPaperTrade(direction) {
     const t3    = parseFloat(document.getElementById('ptT3').value) || null;
     const qty   = parseInt(document.getElementById('ptQty').value) || 1;
     if (!entry || !sl || !t1) { showToast('Fill Entry, SL and T1 first', 'red'); return; }
+    if (direction === 'buy' && !(sl < entry && t1 > entry)) {
+        showToast('For BUY: SL must be below entry, T1 above entry', 'red'); return;
+    }
+    if (direction === 'sell' && !(sl > entry && t1 < entry)) {
+        showToast('For SHORT: SL must be above entry, T1 below entry', 'red'); return;
+    }
 
     // ── Confirmation dialog ────────────────────────────────────────────────
     const emoji    = direction === 'buy' ? '🟢 BUY' : '🔴 SHORT';
@@ -2133,6 +2153,8 @@ function openPaperTrade(direction) {
             const emj = direction === 'buy' ? '🟢' : '🔴';
             showToast(`${emj} Paper ${direction.toUpperCase()} opened — ${currentSymbol}`, 'green');
             startPaperTradeMonitor();
+        } else {
+            showToast(data.error || 'Failed to open trade', 'red');
         }
     })
     .catch(() => showToast('Failed to open trade', 'red'));

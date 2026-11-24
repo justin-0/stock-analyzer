@@ -696,11 +696,14 @@ def generate_signal(indicators, trade_type='swing', patterns=None):
 
         total = bull+bear
         bull_pct = round((bull/total)*100) if total>0 else 50
-        if bull>=8:   sig,col='STRONG BUY','success'
-        elif bull>=5: sig,col='BUY','success'
-        elif bear>=8: sig,col='STRONG SELL','danger'
-        elif bear>=5: sig,col='SELL','danger'
-        else:         sig,col='WAIT','warning'
+        # A side must reach its threshold AND clearly outweigh the other side.
+        # Previously bull>=5 won even when bear points were far higher.
+        net = bull - bear
+        if bull>=8 and net>=4:    sig,col='STRONG BUY','success'
+        elif bull>=5 and net>=2:  sig,col='BUY','success'
+        elif bear>=8 and net<=-4: sig,col='STRONG SELL','danger'
+        elif bear>=5 and net<=-2: sig,col='SELL','danger'
+        else:                     sig,col='WAIT','warning'
         ap = atr/price*100
         if ap>3:     risk,rc='HIGH','danger'
         elif ap>1.5: risk,rc='MEDIUM','warning'
@@ -713,11 +716,27 @@ def generate_signal(indicators, trade_type='swing', patterns=None):
             sl=round(price-atr*3,2); t1=round(price+atr*5,2); t2=round(price+atr*10,2)
         rr = round((t1-price)/(price-sl),2) if price!=sl else 0
         trend = 'STRONG' if bull_pct>=75 else 'MODERATE' if bull_pct>=55 else 'WEAK'
+
+        # Short-side levels are the long levels mirrored around the entry price:
+        # stop loss ABOVE entry, targets BELOW entry.
+        short_sell = None
+        if sig in ['SELL', 'STRONG SELL']:
+            s_sl = round(price + (price - sl), 2)
+            s_t1 = round(price - (t1 - price), 2)
+            s_t2 = round(price - (t2 - price), 2)
+            short_sell = {
+                'sell_at': price, 'stop_loss': s_sl,
+                'target1': s_t1, 'target2': s_t2, 'buy_back': s_t1,
+                'profit': round(price - s_t1, 2),
+                'profit_pct': round((price - s_t1) / price * 100, 2) if price else 0,
+                'note': f'Stop loss ₹{s_sl:,.2f} (above entry). Intraday shorts only on NSE cash.',
+            }
+
         return {
             'signal':sig,'signal_color':col,'bull_points':bull,'bear_points':bear,
             'bull_pct':bull_pct,'risk':risk,'risk_color':rc,'entry_price':price,
             'stop_loss':sl,'target1':t1,'target2':t2,'risk_reward':rr,
-            'trend_strength':trend,'short_sell':sig in ['SELL','STRONG SELL'],
+            'trend_strength':trend,'short_sell':short_sell,
         }
     except Exception as e:
         print(f"Signal error: {e}")

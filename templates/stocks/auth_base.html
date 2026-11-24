@@ -1,0 +1,113 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>StockAnalyzer — {% block title %}Account{% endblock %}</title>
+    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&family=Fira+Code:wght@400;500;600&display=swap" rel="stylesheet">
+    <style>
+        *, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
+        :root {
+            --bg: #0a0e1a; --green: #00ff88; --blue: #00aaff; --red: #ff4757;
+            --muted: rgba(255,255,255,0.4); --border: rgba(255,255,255,0.07);
+        }
+        body { font-family: 'Plus Jakarta Sans', sans-serif; background: var(--bg); color: #fff; min-height: 100vh; }
+        .grid-bg {
+            position: fixed; inset: 0; pointer-events: none; z-index: 0;
+            background-image:
+                linear-gradient(rgba(255,255,255,0.018) 1px, transparent 1px),
+                linear-gradient(90deg, rgba(255,255,255,0.018) 1px, transparent 1px);
+            background-size: 60px 60px;
+        }
+        nav {
+            position: fixed; top: 0; left: 0; right: 0; z-index: 100;
+            padding: 18px 60px; display: flex; align-items: center; justify-content: space-between;
+            background: rgba(10,14,26,0.85); backdrop-filter: blur(20px); border-bottom: 1px solid var(--border);
+        }
+        .nav-logo { display: flex; align-items: center; gap: 12px; text-decoration: none; }
+        .nav-logo-icon {
+            width: 40px; height: 40px; border-radius: 10px; font-size: 20px;
+            background: linear-gradient(135deg, var(--green), var(--blue));
+            display: flex; align-items: center; justify-content: center;
+        }
+        .nav-logo-text { font-size: 18px; font-weight: 700; color: #fff; }
+        .nav-logo-text span { color: var(--green); }
+        .btn-ghost {
+            padding: 9px 20px; border: 1px solid rgba(0,255,136,0.4); border-radius: 10px;
+            color: var(--green); font-size: 14px; font-weight: 600; text-decoration: none;
+        }
+        .btn-ghost:hover { border-color: var(--green); background: rgba(0,255,136,0.06); }
+
+        .page {
+            min-height: 100vh; display: flex; align-items: center; justify-content: center;
+            padding: 120px 24px 60px; position: relative; z-index: 1;
+        }
+        .card {
+            background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.08);
+            border-radius: 24px; padding: 48px 40px; width: 100%; max-width: 420px;
+            backdrop-filter: blur(20px); animation: fadeUp 0.5s ease both;
+        }
+        @keyframes fadeUp { from { opacity: 0; transform: translateY(24px); } to { opacity: 1; transform: none; } }
+        .card-header { margin-bottom: 28px; }
+        .card-eyebrow {
+            font-size: 12px; font-weight: 600; color: var(--green);
+            letter-spacing: 0.12em; text-transform: uppercase; margin-bottom: 8px;
+        }
+        .card-title { font-size: 26px; font-weight: 700; margin-bottom: 6px; }
+        .card-sub { font-size: 14px; color: var(--muted); line-height: 1.55; }
+
+        .error-box, .info-box {
+            border-radius: 12px; padding: 12px 16px; font-size: 14px; margin-bottom: 20px; line-height: 1.5;
+        }
+        .error-box { background: rgba(255,71,87,0.1); border: 1px solid rgba(255,71,87,0.25); color: var(--red); }
+        .info-box  { background: rgba(0,255,136,0.08); border: 1px solid rgba(0,255,136,0.25); color: var(--green); }
+        .error-box ul { padding-left: 18px; }
+
+        .form-group { margin-bottom: 18px; }
+        .form-label {
+            display: block; font-size: 11px; font-weight: 600; color: var(--muted);
+            text-transform: uppercase; letter-spacing: 0.08em; margin-bottom: 8px;
+        }
+        .form-group input {
+            width: 100%; background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.09);
+            border-radius: 12px; padding: 13px 16px; color: #fff; font-size: 15px;
+            font-family: 'Plus Jakarta Sans', sans-serif; outline: none; transition: all 0.2s;
+        }
+        .form-group input:focus {
+            border-color: var(--green); background: rgba(0,255,136,0.04);
+            box-shadow: 0 0 0 3px rgba(0,255,136,0.06);
+        }
+        .field-error { color: var(--red); font-size: 12px; margin-top: 6px; }
+        .help-text { color: var(--muted); font-size: 12px; margin-top: 6px; line-height: 1.5; }
+        .help-text ul { padding-left: 18px; }
+
+        .btn-submit {
+            width: 100%; padding: 15px; border: none; border-radius: 12px; cursor: pointer;
+            background: linear-gradient(135deg, var(--green), var(--blue)); color: #0a0e1a;
+            font-size: 16px; font-weight: 700; font-family: 'Plus Jakarta Sans', sans-serif;
+            margin-top: 8px; transition: all 0.2s; display: block; text-align: center; text-decoration: none;
+        }
+        .btn-submit:hover { transform: translateY(-2px); box-shadow: 0 10px 32px rgba(0,255,136,0.28); }
+        .footer-link { text-align: center; margin-top: 24px; font-size: 14px; color: var(--muted); }
+        .footer-link a { color: var(--green); text-decoration: none; font-weight: 600; }
+        .footer-link a:hover { text-decoration: underline; }
+
+        @media (max-width: 600px) { nav { padding: 16px 20px; } .card { padding: 36px 24px; } }
+    </style>
+</head>
+<body>
+<div class="grid-bg"></div>
+<nav>
+    <a href="/" class="nav-logo">
+        <div class="nav-logo-icon">📈</div>
+        <div class="nav-logo-text">Stock<span>Analyzer</span></div>
+    </a>
+    <a href="{% url 'login' %}" class="btn-ghost">Login</a>
+</nav>
+<div class="page">
+    <div class="card">
+        {% block content %}{% endblock %}
+    </div>
+</div>
+</body>
+</html>

@@ -205,16 +205,30 @@ function shortSource(src) {
     return src.slice(0, 4);
 }
 
+// Escape text from external sources (RSS feeds) before putting it in innerHTML
+function escapeHtml(str) {
+    if (str === null || str === undefined) return '';
+    return String(str)
+        .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+}
+
+// Only allow http(s) links in href — blocks javascript:/data: URLs
+function safeUrl(url) {
+    const u = String(url || '').trim();
+    return /^https?:\/\//i.test(u) ? escapeHtml(u) : '#';
+}
+
 function newsCard(item) {
-    const cls = sourceClass(item.source);
-    const src = shortSource(item.source);
+    const cls = sourceClass(item.source || '');
+    const src = shortSource(item.source || '');
     return `
-        <a class="news-card" href="${item.link}" target="_blank" rel="noopener">
+        <a class="news-card" href="${safeUrl(item.link)}" target="_blank" rel="noopener noreferrer">
             <div class="news-card-meta">
-                <span class="news-source ${cls}">${src}</span>
-                <span class="news-time">${item.time || ''}</span>
+                <span class="news-source ${cls}">${escapeHtml(src)}</span>
+                <span class="news-time">${escapeHtml(item.time)}</span>
             </div>
-            <div class="news-headline">${item.title}</div>
+            <div class="news-headline">${escapeHtml(item.title)}</div>
         </a>`;
 }
 
@@ -253,7 +267,7 @@ function loadStockNews(symbol) {
     if (!symbol) return;
     currentStock = symbol.toUpperCase().trim();
     const col = document.getElementById('stockNewsCol');
-    col.innerHTML = '<div class="news-loading"><div class="spinner"></div><div class="loading-text">Fetching ' + currentStock + ' news...</div></div>';
+    col.innerHTML = '<div class="news-loading"><div class="spinner"></div><div class="loading-text">Fetching ' + escapeHtml(currentStock) + ' news...</div></div>';
 
     fetch('/api/stock-news/?symbol=' + encodeURIComponent(currentStock))
         .then(r => r.json())
@@ -263,12 +277,12 @@ function loadStockNews(symbol) {
             document.getElementById('ssrLabel').textContent = `Showing news for ${currentStock}`;
             document.getElementById('ssrSub').textContent   = `${news.length} article${news.length !== 1 ? 's' : ''} found`;
             document.getElementById('ssrAnalyzeBtn').onclick = () => {
-                window.location.href = '/dashboard/?stock=' + currentStock;
+                window.location.href = '/dashboard/?stock=' + encodeURIComponent(currentStock);
             };
             result.classList.add('visible');
 
             if (!news.length) {
-                col.innerHTML = `<div class="news-empty">No news found for ${currentStock}<br><span style="font-size:11px;color:rgba(255,255,255,0.2)">Try a different symbol</span></div>`;
+                col.innerHTML = `<div class="news-empty">No news found for ${escapeHtml(currentStock)}<br><span style="font-size:11px;color:rgba(255,255,255,0.2)">Try a different symbol</span></div>`;
                 return;
             }
             col.innerHTML = news.map(newsCard).join('');

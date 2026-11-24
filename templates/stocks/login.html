@@ -306,6 +306,10 @@
         .footer-link a { color: var(--green); text-decoration: none; font-weight: 600; }
         .footer-link a:hover { text-decoration: underline; }
 
+        .forgot-link { text-align: right; margin-top: 8px; }
+        .forgot-link a { color: var(--muted); font-size: 13px; text-decoration: none; transition: color 0.2s; }
+        .forgot-link a:hover { color: var(--green); }
+
         /* ── MARKET SIDEBAR ── */
         .market-sidebar {
             width: 300px;
@@ -540,6 +544,7 @@
             <div class="form-group">
                 <label class="form-label">Password</label>
                 <input class="form-input" type="password" name="password" placeholder="Enter your password" required>
+                <div class="forgot-link"><a href="{% url 'password_reset' %}">Forgot password?</a></div>
             </div>
             <button type="submit" class="btn-submit">
                 Sign In <span>→</span>
