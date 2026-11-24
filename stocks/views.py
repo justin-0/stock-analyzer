@@ -10,6 +10,7 @@ from django.utils import timezone
 from django.conf import settings
 from django.db.models import Count, Q
 from .models import Watchlist, UserProfile, ActivityLog, SignalHistory, StockCache , PaperTrade
+from . import upstox_auth
 from .forms import (
     RegisterForm, COUNTRY_CHOICES, normalize_phone, phone_taken, email_taken, split_phone,
 )
@@ -21,6 +22,8 @@ from .utils import (
     get_upstox_quote, get_upstox_quotes_bulk, get_live_price_for_trade, get_market_overview,
 )
 import json
+import secrets
+from django.urls import reverse
 
 logger = logging.getLogger(__name__)
 
@@ -168,6 +171,7 @@ def dashboard(request):
         'watchlist': watchlist,
         'recent_signals': recent_signals,
         'profile': profile,
+        'upstox_oauth_enabled': upstox_auth.oauth_enabled(),
     }
     return render(request, 'stocks/dashboard.html', context)
 
@@ -613,24 +617,80 @@ def watchlist_signals(request):
 
 @login_required(login_url='login')
 def save_upstox_token(request):
-    """Save user's personal Upstox token to their profile"""
+    """Save a pasted Upstox access token to the user's profile and verify it."""
     if request.method != 'POST':
         return JsonResponse({'error': 'Invalid method'}, status=405)
     try:
         data = json.loads(request.body)
-        token = data.get('token', '').strip()
-        if not token:
-            return JsonResponse({'error': 'No token provided'}, status=400)
-        profile = getattr(request.user, 'profile', None)
-        if not profile:
-            return JsonResponse({'error': 'No profile found'}, status=404)
-        profile.upstox_token = token
-        profile.upstox_token_updated = timezone.now()
-        profile.save()
-        log_activity(request.user, 'analyze', detail='Updated Upstox token', request=request)
-        return JsonResponse({'status': 'saved', 'message': 'Upstox token saved successfully'})
+    except Exception:
+        return JsonResponse({'error': 'Invalid JSON'}, status=400)
+    token = str(data.get('token', '')).strip()
+    if not token or len(token) > 4000:
+        return JsonResponse({'error': 'No token provided'}, status=400)
+    profile = getattr(request.user, 'profile', None)
+    if not profile:
+        return JsonResponse({'error': 'No profile found'}, status=404)
+
+    if upstox_auth.check_token(token) == 'expired':
+        return JsonResponse({'error': 'Upstox rejected this token: it is expired or invalid.'}, status=400)
+
+    if profile.upstox_token:
+        upstox_auth.forget_token(profile.upstox_token)
+    profile.upstox_token = token
+    profile.upstox_token_updated = timezone.now()
+    profile.save()
+    log_activity(request.user, 'analyze', detail='Updated Upstox token', request=request)
+    return JsonResponse({'status': 'saved', **upstox_auth.token_status(profile)})
+
+
+@login_required(login_url='login')
+def upstox_status(request):
+    """Is the Upstox token this user's prices come from still valid?"""
+    profile = getattr(request.user, 'profile', None)
+    data = upstox_auth.token_status(profile)
+    data['oauth_enabled'] = upstox_auth.oauth_enabled()
+    return JsonResponse(data)
+
+
+def _upstox_redirect_uri(request):
+    return settings.UPSTOX_REDIRECT_URI or request.build_absolute_uri(reverse('upstox_callback'))
+
+
+@login_required(login_url='login')
+def upstox_connect(request):
+    """Step 1: send the user to Upstox's login page."""
+    if not upstox_auth.oauth_enabled():
+        return redirect('/dashboard/?upstox=not_configured')
+    state = upstox_auth.new_state()
+    request.session['upstox_oauth_state'] = state
+    return redirect(upstox_auth.build_auth_url(_upstox_redirect_uri(request), state))
+
+
+@login_required(login_url='login')
+def upstox_callback(request):
+    """Step 2: Upstox sends the user back here with a one-time ?code=."""
+    expected = request.session.pop('upstox_oauth_state', None)
+    state = request.GET.get('state', '')
+    code = request.GET.get('code', '')
+    if not expected or not secrets.compare_digest(state, expected):
+        return redirect('/dashboard/?upstox=bad_state')
+    if not code:
+        return redirect('/dashboard/?upstox=cancelled')
+    try:
+        token = upstox_auth.exchange_code(code, _upstox_redirect_uri(request))
     except Exception as e:
-        return JsonResponse({'error': str(e)}, status=500)
+        logger.warning('Upstox token exchange failed for %s: %s', request.user.username, e)
+        return redirect('/dashboard/?upstox=failed')
+
+    profile, _ = UserProfile.objects.get_or_create(user=request.user)
+    if profile.upstox_token:
+        upstox_auth.forget_token(profile.upstox_token)
+    profile.upstox_token = token
+    profile.upstox_token_updated = timezone.now()
+    profile.save()
+    log_activity(request.user, 'analyze', detail='Connected Upstox (login)', request=request)
+    return redirect('/dashboard/?upstox=connected')
+
 
 @login_required(login_url='login')
 def stock_news(request):

@@ -42,6 +42,9 @@ urlpatterns = [
     path('api/news/', views.market_news, name='market_news'),
     path('api/stock-news/', views.stock_news, name='stock_news'),
     path('api/upstox-token/', views.save_upstox_token, name='save_upstox_token'),
+    path('api/upstox-status/', views.upstox_status, name='upstox_status'),
+    path('upstox/connect/', views.upstox_connect, name='upstox_connect'),
+    path('upstox/callback/', views.upstox_callback, name='upstox_callback'),
 
     path('trades/', views.trades_view, name='trades'),
     path('api/paper-trade/open/',  views.paper_trade_open,  name='paper_trade_open'),

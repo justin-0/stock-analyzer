@@ -1117,6 +1117,31 @@
         .modal-input:focus { border-color: var(--green); }
 
         .modal-btns { display: flex; gap: 10px; }
+        .modal-status { font-size: 12px; margin: -8px 0 14px; color: var(--muted); }
+        .modal-status.ok  { color: var(--green); }
+        .modal-status.bad { color: var(--red); }
+        .upstox-connect-btn { display: block; text-align: center; text-decoration: none; margin-bottom: 12px; }
+        .modal-or { text-align: center; font-size: 11px; color: var(--muted); margin-bottom: 12px; text-transform: uppercase; letter-spacing: .08em; }
+
+        .upstox-banner {
+            display: flex; align-items: center; gap: 10px; flex-wrap: wrap;
+            margin: 10px 16px 0; padding: 10px 14px; border-radius: 10px;
+            background: rgba(255,196,0,0.08); border: 1px solid rgba(255,196,0,0.3);
+            color: #ffc400; font-size: 13px; font-weight: 600;
+        }
+        .upstox-banner.hidden { display: none; }
+        .upstox-banner.missing { background: rgba(0,170,255,0.07); border-color: rgba(0,170,255,0.3); color: #7cc8ff; }
+        .ub-text { flex: 1; min-width: 200px; }
+        .ub-actions { display: flex; gap: 8px; align-items: center; }
+        .ub-btn {
+            padding: 6px 12px; border-radius: 8px; font-size: 12px; font-weight: 700; cursor: pointer;
+            border: 1px solid currentColor; background: transparent; color: inherit;
+            text-decoration: none; font-family: inherit;
+        }
+        .ub-btn.primary { background: #ffc400; color: #0a0e1a; border-color: #ffc400; }
+        .upstox-banner.missing .ub-btn.primary { background: #00aaff; border-color: #00aaff; }
+        .ub-close { background: none; border: none; color: inherit; cursor: pointer; font-size: 14px; opacity: .7; }
+        .ub-close:hover { opacity: 1; }
 
         .modal-save {
             flex: 1;
@@ -1383,6 +1408,19 @@
         </div>
     </div>
     <div class="strip-clock" id="stripClock">—</div>
+</div>
+
+<!-- UPSTOX TOKEN WARNING (filled by checkUpstoxStatus in main.js) -->
+<div class="upstox-banner hidden" id="upstoxBanner" role="status">
+    <span class="ub-icon">⚠️</span>
+    <span class="ub-text" id="upstoxBannerText">Upstox token expired: prices are delayed ~15 min.</span>
+    <span class="ub-actions">
+        {% if upstox_oauth_enabled %}
+        <a class="ub-btn primary" href="{% url 'upstox_connect' %}">Connect Upstox</a>
+        {% endif %}
+        <button class="ub-btn" type="button" onclick="showUpstoxModal()">Paste token</button>
+        <button class="ub-close" type="button" aria-label="Dismiss" onclick="dismissUpstoxBanner()">✕</button>
+    </span>
 </div>
 
 <!-- ══════════════════════════════════════
@@ -1702,7 +1740,12 @@
 <div class="modal-overlay hidden" id="upstoxModal">
     <div class="modal">
         <div class="modal-title">🔄 Refresh Upstox Token</div>
-        <div class="modal-sub">Paste your new Upstox access token below. Required daily for real-time intraday prices.</div>
+        <div class="modal-sub">Upstox tokens expire every day at 3:30 AM. Needed for real-time intraday prices.</div>
+        <div class="modal-status" id="upstoxModalStatus"></div>
+        {% if upstox_oauth_enabled %}
+        <a class="modal-save upstox-connect-btn" href="{% url 'upstox_connect' %}">🔐 Connect with Upstox login</a>
+        <div class="modal-or">or paste a token manually</div>
+        {% endif %}
         <input type="text" class="modal-input" id="upstoxTokenInput" placeholder="Paste your Upstox access token here...">
         <div class="modal-btns">
             <button class="modal-save" onclick="saveUpstoxToken()">Save Token</button>

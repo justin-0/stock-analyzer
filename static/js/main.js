@@ -69,6 +69,11 @@ document.addEventListener('DOMContentLoaded', () => {
         // Start paper trade monitor
     startPaperTradeMonitor();
 
+    // Upstox token status banner: check now, then every 10 min
+    handleUpstoxReturn();
+    checkUpstoxStatus();
+    setInterval(checkUpstoxStatus, 600000);
+
     // Keyboard shortcut: / → focus search
     document.addEventListener('keydown', e => {
         if (e.key === '/' && document.activeElement !== document.getElementById('searchInput')) {
@@ -1489,6 +1494,73 @@ function hideUpstoxModal() {
     document.getElementById('upstoxModal')?.classList.add('hidden');
 }
 
+// ── Upstox token status banner ──────────────────────────────
+// Without a valid Upstox token, prices silently fall back to yfinance (~15 min delay).
+const UPSTOX_BANNER_TEXT = {
+    expired: '⚠ Upstox token expired: live prices are OFF, intraday prices are delayed ~15 min.',
+    missing: 'ℹ Upstox not connected: prices are delayed ~15 min. Connect Upstox for real-time intraday data.',
+};
+
+function renderUpstoxStatus(data) {
+    const banner = document.getElementById('upstoxBanner');
+    const text   = document.getElementById('upstoxBannerText');
+    const modalS = document.getElementById('upstoxModalStatus');
+    const st     = data && data.status;
+
+    if (modalS) {
+        const exp = data && data.expires_at
+            ? ' · expires ' + new Date(data.expires_at).toLocaleString('en-IN', { timeZone: 'Asia/Kolkata', hour: '2-digit', minute: '2-digit', day: 'numeric', month: 'short' })
+            : '';
+        modalS.className = 'modal-status ' + (st === 'valid' ? 'ok' : st === 'unknown' ? '' : 'bad');
+        modalS.textContent = st === 'valid'   ? `✓ Connected (${data.source === 'server' ? 'shared server token' : 'your token'})${exp}`
+                           : st === 'expired' ? '✕ Current token is expired'
+                           : st === 'missing' ? '✕ No token connected'
+                           : 'Could not reach Upstox to check the token';
+    }
+    if (!banner || !text) return;
+    const dismissed = sessionStorage.getItem('sa_upstox_banner_dismissed') === st;
+    if ((st === 'expired' || st === 'missing') && !dismissed) {
+        text.textContent = UPSTOX_BANNER_TEXT[st];
+        banner.classList.toggle('missing', st === 'missing');
+        banner.classList.remove('hidden');
+    } else {
+        banner.classList.add('hidden');
+    }
+}
+
+function checkUpstoxStatus() {
+    fetch('/api/upstox-status/')
+        .then(r => r.ok ? r.json() : null)
+        .then(renderUpstoxStatus)
+        .catch(() => {});
+}
+
+function dismissUpstoxBanner() {
+    // Hide for this browser session only; it comes back on the next visit if still expired
+    const st = document.getElementById('upstoxBanner')?.classList.contains('missing') ? 'missing' : 'expired';
+    sessionStorage.setItem('sa_upstox_banner_dismissed', st);
+    document.getElementById('upstoxBanner')?.classList.add('hidden');
+}
+
+// Result of the one-click Upstox login (/upstox/callback/ redirects with ?upstox=...)
+function handleUpstoxReturn() {
+    const params = new URLSearchParams(window.location.search);
+    const res = params.get('upstox');
+    if (!res) return;
+    const msg = {
+        connected:      ['✓ Upstox connected: real-time prices active until 3:30 AM', 'green'],
+        cancelled:      ['Upstox login was cancelled', 'red'],
+        failed:         ['Upstox login failed. Please try again.', 'red'],
+        bad_state:      ['Upstox login expired. Please click Connect again.', 'red'],
+        not_configured: ['Upstox login is not set up on the server yet', 'red'],
+    }[res];
+    if (msg) setTimeout(() => showToast(msg[0], msg[1]), 400);
+    sessionStorage.removeItem('sa_upstox_banner_dismissed');
+    params.delete('upstox');
+    const qs = params.toString();
+    history.replaceState(null, '', window.location.pathname + (qs ? '?' + qs : ''));
+}
+
 function saveUpstoxToken() {
     const token = document.getElementById('upstoxTokenInput')?.value.trim();
     if (!token) { showToast('Paste a token first', 'red'); return; }
@@ -1498,20 +1570,19 @@ function saveUpstoxToken() {
         headers: { 'Content-Type': 'application/json', 'X-CSRFToken': getCsrf() },
         body:    JSON.stringify({ token }),
     })
-    .then(r => r.json())
-    .then(data => {
+    .then(r => r.json().then(data => ({ ok: r.ok, data })))
+    .then(({ ok, data }) => {
+        if (!ok) { showToast(data.error || 'Could not save token', 'red'); return; }
+        document.getElementById('upstoxTokenInput').value = '';
         hideUpstoxModal();
-        showToast('✓ Upstox token saved — real-time data active', 'green');
+        sessionStorage.removeItem('sa_upstox_banner_dismissed');
+        renderUpstoxStatus(data);
+        showToast('✓ Upstox token saved: real-time data active', 'green');
         if (currentSymbol && currentTradeType === 'intraday') {
             analyzeStock(currentSymbol, true);
         }
     })
-    .catch(() => {
-        // Even if endpoint fails, save locally
-        localStorage.setItem('sa_upstox_token', token);
-        hideUpstoxModal();
-        showToast('Token saved locally', 'green');
-    });
+    .catch(() => showToast('Could not save token. Check your connection.', 'red'));
 }
 
 // ─────────────────────────────────────────────────────────────

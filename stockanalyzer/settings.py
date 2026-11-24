@@ -117,6 +117,11 @@ CORS_ALLOW_ALL_ORIGINS = True
 FINNHUB_API_KEY     = os.getenv('FINNHUB_API_KEY', '')
 ALPHA_VANTAGE_KEY   = os.getenv('ALPHA_VANTAGE_KEY', '')
 UPSTOX_ACCESS_TOKEN = os.getenv('UPSTOX_ACCESS_TOKEN', '')
+# One-click "Connect Upstox" login. Create an app at account.upstox.com/developer/apps
+# and register the redirect URL https://<your-domain>/upstox/callback/
+UPSTOX_API_KEY      = os.getenv('UPSTOX_API_KEY', '')
+UPSTOX_API_SECRET   = os.getenv('UPSTOX_API_SECRET', '')
+UPSTOX_REDIRECT_URI = os.getenv('UPSTOX_REDIRECT_URI', '')   # optional; defaults to this site's /upstox/callback/
 
 CACHE_TIMEOUT = int(os.getenv('CACHE_TIMEOUT', '300'))
 

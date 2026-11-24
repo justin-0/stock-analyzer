@@ -430,3 +430,143 @@ class NormalizeMigrationTests(TestCase):
         self.assertEqual(u.username, 'justin001')
         self.assertEqual(u.email, 'justin001james@gmail.com')
         self.assertEqual(u.profile.phone, '+917034956971')
+
+
+from datetime import datetime as _dt
+from zoneinfo import ZoneInfo
+from django.test import override_settings
+from django.utils import timezone as dj_tz
+from stocks import upstox_auth
+
+IST = ZoneInfo('Asia/Kolkata')
+# Templates using {% static %} need a manifest in production; tests skip collectstatic.
+PLAIN_STATIC = override_settings(STORAGES={
+    'default': {'BACKEND': 'django.core.files.storage.FileSystemStorage'},
+    'staticfiles': {'BACKEND': 'django.contrib.staticfiles.storage.StaticFilesStorage'},
+})
+
+
+def fake_resp(status, payload=None):
+    return mock.Mock(status_code=status, json=lambda: payload or {})
+
+
+class UpstoxExpiryTests(TestCase):
+    def test_expires_next_330am_ist(self):
+        exp = upstox_auth.token_expiry(_dt(2026, 11, 24, 10, 0, tzinfo=IST))
+        self.assertEqual(exp, _dt(2026, 11, 25, 3, 30, tzinfo=IST))
+        exp = upstox_auth.token_expiry(_dt(2026, 11, 24, 2, 0, tzinfo=IST))   # before 3:30 → same day
+        self.assertEqual(exp, _dt(2026, 11, 24, 3, 30, tzinfo=IST))
+
+
+@override_settings(UPSTOX_ACCESS_TOKEN='', UPSTOX_API_KEY='', UPSTOX_API_SECRET='')
+class UpstoxStatusTests(TestCase):
+    def setUp(self):
+        upstox_auth._STATUS_CACHE.clear()
+        self.user = make_user('trader2')
+        self.client.force_login(self.user)
+
+    def status(self):
+        return self.client.get('/api/upstox-status/').json()
+
+    def test_missing_token(self):
+        self.assertEqual(self.status()['status'], 'missing')
+
+    def test_old_token_expired_by_clock_without_api_call(self):
+        p = self.user.profile
+        p.upstox_token = 'tok-old'
+        p.upstox_token_updated = dj_tz.now() - dj_tz.timedelta(days=2)
+        p.save()
+        with mock.patch('stocks.upstox_auth.requests.get') as g:
+            self.assertEqual(self.status()['status'], 'expired')
+            g.assert_not_called()
+
+    def test_fresh_token_checked_with_upstox_and_cached(self):
+        p = self.user.profile
+        p.upstox_token = 'tok-fresh'
+        p.upstox_token_updated = dj_tz.now()
+        p.save()
+        with mock.patch('stocks.upstox_auth.requests.get', return_value=fake_resp(200)) as g:
+            self.assertEqual(self.status()['status'], 'valid')
+            self.assertEqual(self.status()['status'], 'valid')
+            self.assertEqual(g.call_count, 1)          # second call served from cache
+
+    @override_settings(UPSTOX_ACCESS_TOKEN='server-tok')
+    def test_server_token_rejected_by_upstox(self):
+        with mock.patch('stocks.upstox_auth.requests.get', return_value=fake_resp(401)):
+            d = self.status()
+        self.assertEqual((d['status'], d['source']), ('expired', 'server'))
+
+    def test_paste_expired_token_is_rejected(self):
+        with mock.patch('stocks.upstox_auth.requests.get', return_value=fake_resp(401)):
+            r = self.client.post('/api/upstox-token/', json.dumps({'token': 'bad'}),
+                                 content_type='application/json')
+        self.assertEqual(r.status_code, 400)
+        self.user.profile.refresh_from_db()
+        self.assertEqual(self.user.profile.upstox_token, '')
+
+    def test_paste_valid_token_saves_and_reports_valid(self):
+        with mock.patch('stocks.upstox_auth.requests.get', return_value=fake_resp(200)):
+            r = self.client.post('/api/upstox-token/', json.dumps({'token': 'good'}),
+                                 content_type='application/json')
+        self.assertEqual(r.json()['status'], 'valid')
+        self.user.profile.refresh_from_db()
+        self.assertEqual(self.user.profile.upstox_token, 'good')
+
+    @PLAIN_STATIC
+    def test_dashboard_has_banner_and_no_connect_button_when_not_configured(self):
+        r = self.client.get('/dashboard/')
+        self.assertContains(r, 'id="upstoxBanner"')
+        self.assertNotContains(r, '/upstox/connect/')
+
+
+@override_settings(UPSTOX_API_KEY='key123', UPSTOX_API_SECRET='secret456', UPSTOX_REDIRECT_URI='')
+class UpstoxOAuthTests(TestCase):
+    def setUp(self):
+        upstox_auth._STATUS_CACHE.clear()
+        self.user = make_user('oauthuser')
+        self.client.force_login(self.user)
+
+    def connect(self):
+        r = self.client.get('/upstox/connect/')
+        self.assertEqual(r.status_code, 302)
+        return r['Location']
+
+    def test_connect_redirects_to_upstox_with_state(self):
+        loc = self.connect()
+        self.assertTrue(loc.startswith('https://api.upstox.com/v2/login/authorization/dialog?'))
+        self.assertIn('client_id=key123', loc)
+        self.assertIn('redirect_uri=http%3A%2F%2Ftestserver%2Fupstox%2Fcallback%2F', loc)
+        self.assertIn('state=' + self.client.session['upstox_oauth_state'], loc)
+
+    def test_callback_saves_token(self):
+        self.connect()
+        state = self.client.session['upstox_oauth_state']
+        with mock.patch('stocks.upstox_auth.requests.post',
+                        return_value=fake_resp(200, {'access_token': 'live-token'})) as post:
+            r = self.client.get('/upstox/callback/', {'code': 'abc', 'state': state})
+        self.assertEqual(r['Location'], '/dashboard/?upstox=connected')
+        sent = post.call_args.kwargs['data']
+        self.assertEqual((sent['code'], sent['client_secret']), ('abc', 'secret456'))
+        self.user.profile.refresh_from_db()
+        self.assertEqual(self.user.profile.upstox_token, 'live-token')
+        self.assertIsNotNone(self.user.profile.upstox_token_updated)
+
+    def test_callback_rejects_wrong_state(self):
+        self.connect()
+        with mock.patch('stocks.upstox_auth.requests.post') as post:
+            r = self.client.get('/upstox/callback/', {'code': 'abc', 'state': 'forged'})
+            post.assert_not_called()
+        self.assertEqual(r['Location'], '/dashboard/?upstox=bad_state')
+
+    def test_callback_exchange_failure(self):
+        self.connect()
+        state = self.client.session['upstox_oauth_state']
+        with mock.patch('stocks.upstox_auth.requests.post', return_value=fake_resp(400)):
+            r = self.client.get('/upstox/callback/', {'code': 'abc', 'state': state})
+        self.assertEqual(r['Location'], '/dashboard/?upstox=failed')
+        self.user.profile.refresh_from_db()
+        self.assertEqual(self.user.profile.upstox_token, '')
+
+    @PLAIN_STATIC
+    def test_dashboard_shows_connect_button(self):
+        self.assertContains(self.client.get('/dashboard/'), '/upstox/connect/')
