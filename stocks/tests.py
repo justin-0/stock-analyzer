@@ -570,3 +570,63 @@ class UpstoxOAuthTests(TestCase):
     @PLAIN_STATIC
     def test_dashboard_shows_connect_button(self):
         self.assertContains(self.client.get('/dashboard/'), '/upstox/connect/')
+
+
+def make_jwt(exp_dt):
+    import base64 as b64
+    enc = lambda d: b64.urlsafe_b64encode(json.dumps(d).encode()).decode().rstrip('=')
+    return f"{enc({'alg': 'HS256'})}.{enc({'exp': int(exp_dt.timestamp())})}.sig"
+
+
+@override_settings(UPSTOX_ACCESS_TOKEN='')
+class AnalyticsTokenTests(TestCase):
+    def setUp(self):
+        upstox_auth._STATUS_CACHE.clear()
+        self.user = make_user('analyst')
+
+    def test_jwt_expiry_read_from_token(self):
+        exp = _dt(2027, 5, 16, 3, 30, tzinfo=IST)
+        self.assertEqual(upstox_auth.jwt_expiry(make_jwt(exp)), exp)
+        self.assertIsNone(upstox_auth.jwt_expiry('not-a-jwt'))
+
+    def test_status_check_uses_market_quote_not_profile(self):
+        with mock.patch('stocks.upstox_auth.requests.get', return_value=fake_resp(200)) as g:
+            upstox_auth.check_token('t1')
+        self.assertIn('/v2/market-quote/ltp', g.call_args.args[0])
+
+    def test_analytics_token_not_expired_by_330am_rule(self):
+        p = self.user.profile
+        p.upstox_token = make_jwt(dj_tz.now() + dj_tz.timedelta(days=300))
+        p.upstox_token_updated = dj_tz.now() - dj_tz.timedelta(days=3)   # pasted days ago
+        p.save()
+        with mock.patch('stocks.upstox_auth.requests.get', return_value=fake_resp(200)):
+            st = upstox_auth.token_status(p)
+        self.assertEqual((st['status'], st['source']), ('valid', 'personal'))
+
+    def test_expired_jwt_skips_api_call(self):
+        p = self.user.profile
+        p.upstox_token = make_jwt(dj_tz.now() - dj_tz.timedelta(hours=1))
+        p.save()
+        with mock.patch('stocks.upstox_auth.requests.get') as g:
+            self.assertEqual(upstox_auth.token_status(p)['status'], 'expired')
+            g.assert_not_called()
+
+    def test_paste_analytics_token_is_accepted(self):
+        self.client.force_login(self.user)
+        tok = make_jwt(dj_tz.now() + dj_tz.timedelta(days=365))
+        with mock.patch('stocks.upstox_auth.requests.get', return_value=fake_resp(200)):
+            r = self.client.post('/api/upstox-token/', json.dumps({'token': tok}),
+                                 content_type='application/json')
+        self.assertEqual(r.json()['status'], 'valid')
+        self.assertTrue(r.json()['expires_at'].startswith(str((dj_tz.now() + dj_tz.timedelta(days=365)).year)))
+
+    @override_settings(UPSTOX_ACCESS_TOKEN='shared-analytics')
+    def test_expired_personal_token_falls_back_to_common_token(self):
+        p = self.user.profile
+        p.upstox_token = 'old-daily'
+        p.upstox_token_updated = dj_tz.now() - dj_tz.timedelta(days=2)
+        p.save()
+        self.assertIsNone(upstox_auth.personal_token(p))      # quotes will use the common token
+        with mock.patch('stocks.upstox_auth.requests.get', return_value=fake_resp(200)):
+            st = upstox_auth.token_status(p)
+        self.assertEqual((st['status'], st['source']), ('valid', 'server'))

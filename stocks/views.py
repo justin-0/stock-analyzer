@@ -195,7 +195,7 @@ def analyze(request):
 
     # Use user's personal Upstox token if available, else fall back to .env token
     profile = getattr(request.user, 'profile', None)
-    user_token = getattr(profile, 'upstox_token', '').strip() or None
+    user_token = upstox_auth.personal_token(profile)
     quote = get_quote(symbol, trade_type, upstox_token=user_token)
     if not quote:
         return JsonResponse({'error': f'Could not fetch data for {symbol}. Check symbol name.'}, status=404)
@@ -1197,7 +1197,7 @@ def live_price(request):
 
     # Use user's personal Upstox token if saved, else .env fallback
     profile    = getattr(request.user, 'profile', None)
-    user_token = getattr(profile, 'upstox_token', '').strip() or None
+    user_token = upstox_auth.personal_token(profile)
 
     quote = get_upstox_quote(symbol, access_token=user_token)
 
@@ -1333,7 +1333,7 @@ def paper_trade_list(request):
 
     # Use user's personal token if saved, else .env fallback
     profile    = getattr(request.user, 'profile', None)
-    user_token = getattr(profile, 'upstox_token', '').strip() or None
+    user_token = upstox_auth.personal_token(profile)
 
     # ── ONE bulk Upstox call for ALL active trade symbols ──────────────────
     # Cost: 2 HTTP requests total, regardless of how many trades exist.
