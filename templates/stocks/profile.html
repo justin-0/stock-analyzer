@@ -170,6 +170,9 @@ html,body{min-height:100%;background:var(--bg);color:var(--text);font-family:'Pl
   {% if request.GET.saved %}
   <div class="success-msg">✅ Profile updated successfully!</div>
   {% endif %}
+  {% if request.GET.error %}
+  <div class="success-msg" style="background:rgba(255,71,87,0.1);border-color:rgba(255,71,87,0.3);color:#ff4757">⚠ {{ request.GET.error }} Nothing was saved.</div>
+  {% endif %}
 
   <!-- HERO -->
   <div class="profile-hero">
@@ -376,7 +379,14 @@ html,body{min-height:100%;background:var(--bg);color:var(--text);font-family:'Pl
         </div>
         <div class="form-group">
           <label class="form-label">Phone</label>
-          <input type="text" name="phone" class="form-input" value="{{ profile.phone|default:'' }}" placeholder="+91 9876543210">
+          <div style="display:grid;grid-template-columns:150px 1fr;gap:8px">
+            <select name="country_code" class="form-select" aria-label="Country code">
+              {% for code, label in country_choices %}
+              <option value="{{ code }}" {% if code == phone_code %}selected{% endif %}>{{ label }}</option>
+              {% endfor %}
+            </select>
+            <input type="tel" name="phone" class="form-input" value="{{ phone_number }}" placeholder="9876543210" inputmode="numeric">
+          </div>
         </div>
         <div class="form-section-title">Trading Preferences</div>
         <div class="form-row">

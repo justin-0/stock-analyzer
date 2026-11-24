@@ -1,6 +1,8 @@
 from django.shortcuts import render, redirect, get_object_or_404
 from django.http import JsonResponse
 from django.views.decorators.csrf import ensure_csrf_cookie
+from django.views.decorators.cache import never_cache
+from django.db import IntegrityError, transaction
 from django.contrib.auth import authenticate, login, logout
 from django.contrib.auth.decorators import login_required
 from django.contrib.auth.models import User
@@ -8,12 +10,19 @@ from django.utils import timezone
 from django.conf import settings
 from django.db.models import Count, Q
 from .models import Watchlist, UserProfile, ActivityLog, SignalHistory, StockCache , PaperTrade
+from .forms import (
+    RegisterForm, COUNTRY_CHOICES, normalize_phone, phone_taken, email_taken, split_phone,
+)
+from django.core.exceptions import ValidationError
+import logging
 from .utils import (
     get_quote, get_candle_data, calculate_indicators, generate_signal,
     detect_candle_patterns, get_support_resistance, score_trade_types,
     get_upstox_quote, get_upstox_quotes_bulk, get_live_price_for_trade, get_market_overview,
 )
 import json
+
+logger = logging.getLogger(__name__)
 
 
 # ─── Helpers ──────────────────────────────────────────────
@@ -53,6 +62,7 @@ def home_view(request):
     return render(request, 'stocks/home.html')
 
 
+@never_cache   # Back button must reload a fresh form/CSRF token, not a stale copy
 def login_view(request):
     if request.user.is_authenticated:
         if is_admin_user(request.user):
@@ -63,7 +73,9 @@ def login_view(request):
     if request.method == 'POST':
         username = request.POST.get('username', '').strip()
         password = request.POST.get('password', '')
-        user = authenticate(request, username=username, password=password)
+        # Usernames are stored lowercase; accept any casing the user types.
+        match = User.objects.filter(username__iexact=username).values_list('username', flat=True).first()
+        user = authenticate(request, username=match or username, password=password)
 
         if user is not None:
             if not user.is_active:
@@ -80,7 +92,22 @@ def login_view(request):
         else:
             error = 'Invalid username or password'
 
-    return render(request, 'stocks/login.html', {'error': error})
+    info = None
+    if request.GET.get('expired'):
+        info = 'Your page had expired. Please sign in again.'
+    elif request.GET.get('registered'):
+        info = 'Account created! Please sign in.'
+    return render(request, 'stocks/login.html', {'error': error, 'info': info})
+
+
+def csrf_failure(request, reason=''):
+    """Friendlier than Django's bare 403 page. A stale form (e.g. opened in
+    another tab before logging in/out) just reloads with a fresh token."""
+    logger.warning('CSRF failure on %s: %s', request.path, reason)
+    if request.path.startswith('/api/'):
+        return JsonResponse({'error': 'Session expired. Please refresh the page.'}, status=403)
+    sep = '&' if '?' in request.get_full_path() else '?'
+    return redirect(f'{request.path}{sep}expired=1')
 
 
 def logout_view(request):
@@ -91,47 +118,38 @@ def logout_view(request):
 
 
 
+@never_cache
 def register_view(request):
     if request.user.is_authenticated:
         return redirect('dashboard')
 
-    error = None
-    if request.method == 'POST':
-        username = request.POST.get('username', '').strip()
-        email = request.POST.get('email', '').strip()
-        first_name = request.POST.get('first_name', '').strip()
-        last_name = request.POST.get('last_name', '').strip()
-        phone = request.POST.get('phone', '').strip()
-        experience = request.POST.get('trading_experience', 'beginner')
-        trade_type = request.POST.get('preferred_trade_type', 'swing')
-        capital = request.POST.get('capital', 0) or 0
-        password = request.POST.get('password', '')
-        confirm = request.POST.get('confirm_password', '')
-
-        if password != confirm:
-            error = 'Passwords do not match'
-        elif len(password) < 6:
-            error = 'Password must be at least 6 characters'
-        elif User.objects.filter(username=username).exists():
-            error = 'Username already taken'
-        elif User.objects.filter(email=email).exists():
-            error = 'Email already registered'
+    form = RegisterForm(request.POST or None)
+    if request.method == 'POST' and form.is_valid():
+        d = form.cleaned_data
+        try:
+            with transaction.atomic():
+                user = User.objects.create_user(
+                    username=d['username'], email=d['email'], password=d['password'],
+                    first_name=d['first_name'], last_name=d['last_name'],
+                    is_active=True,
+                )
+                UserProfile.objects.create(
+                    user=user, phone=d['phone_e164'],
+                    trading_experience=d['trading_experience'],
+                    preferred_trade_type=d['preferred_trade_type'],
+                    capital=d['capital'],
+                )
+        except IntegrityError:
+            # Two sign-ups racing for the same username/phone
+            form.add_error(None, 'That username or phone number was just taken. Please try another.')
         else:
-            user = User.objects.create_user(
-                username=username, email=email, password=password,
-                first_name=first_name, last_name=last_name,
-                is_active=True,
-            )
-            UserProfile.objects.create(
-                user=user, phone=phone,
-                trading_experience=experience,
-                preferred_trade_type=trade_type,
-                capital=capital,
-            )
-            log_activity(user, 'register', detail=f'New registration from {email}', request=request)
-            return redirect('login')
+            log_activity(user, 'register', detail=f'New registration: {user.username}', request=request)
+            return redirect('/login/?registered=1')
 
-    return render(request, 'stocks/register.html', {'error': error})
+    return render(request, 'stocks/register.html', {
+        'form': form,
+        'country_choices': COUNTRY_CHOICES,
+    })
 
 
 # ─── Main Dashboard ────────────────────────────────────────
@@ -990,28 +1008,42 @@ def profile_view(request):
     profile = getattr(request.user, 'profile', None)
 
     if request.method == 'POST':
-        # Update user info
         first_name = request.POST.get('first_name', '').strip()
         last_name  = request.POST.get('last_name',  '').strip()
-        email      = request.POST.get('email',      '').strip()
+        email      = request.POST.get('email',      '').strip().lower()
+        code       = request.POST.get('country_code', '+91')
+        phone_raw  = request.POST.get('phone',        '').strip()
+        experience = request.POST.get('trading_experience',  '')
+        trade_type = request.POST.get('preferred_trade_type','')
+        capital    = request.POST.get('capital',             '')
+
+        # Same uniqueness rules as sign-up; save nothing if anything is invalid.
+        errors = []
+        if email and email_taken(email, exclude_user=request.user):
+            errors.append('That email is already used by another account.')
+        phone_e164 = ''
+        if phone_raw:
+            try:
+                phone_e164 = normalize_phone(code, phone_raw)
+            except ValidationError as e:
+                errors.append(e.messages[0])
+            else:
+                if phone_taken(phone_e164, exclude_user=request.user):
+                    errors.append('That phone number is already used by another account.')
+        if errors:
+            from urllib.parse import urlencode
+            return redirect('/profile/?' + urlencode({'error': ' '.join(errors)}))
 
         if first_name:
             request.user.first_name = first_name
         if last_name:
             request.user.last_name = last_name
         if email:
-            if not User.objects.filter(email=email).exclude(id=request.user.id).exists():
-                request.user.email = email
+            request.user.email = email
         request.user.save()
 
         if profile:
-            phone      = request.POST.get('phone',               '').strip()
-            experience = request.POST.get('trading_experience',  '')
-            trade_type = request.POST.get('preferred_trade_type','')
-            capital    = request.POST.get('capital',             '')
-
-            if phone is not None:
-                profile.phone = phone
+            profile.phone = phone_e164
             if experience in ('beginner', 'intermediate', 'expert'):
                 profile.trading_experience = experience
             if trade_type in ('intraday', 'swing', 'longterm'):
@@ -1059,6 +1091,8 @@ def profile_view(request):
     day_names  = {1:'Sunday',2:'Monday',3:'Tuesday',4:'Wednesday',5:'Thursday',6:'Friday',7:'Saturday'}
     active_day = day_names.get(most_active['day'], '—') if most_active else '—'
 
+    phone_code, phone_number = split_phone(getattr(profile, 'phone', ''))
+
     # Watchlist items for profile display
     watchlist_items = Watchlist.objects.filter(user=request.user)[:8]
 
@@ -1075,6 +1109,9 @@ def profile_view(request):
         'wait_signals':    wait_signals,
         'active_day':      active_day,
         'watchlist_items': watchlist_items,
+        'country_choices': COUNTRY_CHOICES,
+        'phone_code':      phone_code,
+        'phone_number':    phone_number,
     }
     return render(request, 'stocks/profile.html', context)
 

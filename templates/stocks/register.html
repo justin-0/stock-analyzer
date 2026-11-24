@@ -300,6 +300,12 @@
 
         .capital-wrap .form-input { padding-left: 30px; }
 
+        .phone-wrap { display: grid; grid-template-columns: 170px 1fr; gap: 8px; }
+        .has-error { border-color: rgba(255,71,87,0.6) !important; background: rgba(255,71,87,0.05) !important; }
+        .field-error { color: var(--red); font-size: 12px; margin-top: 6px; line-height: 1.4; }
+        .field-hint { color: rgba(255,255,255,0.35); font-size: 11.5px; margin-top: 6px; line-height: 1.4; }
+        @media (max-width: 520px) { .phone-wrap { grid-template-columns: 1fr; } }
+
         .note-box {
             background: rgba(0,255,136,0.04);
             border: 1px solid rgba(0,255,136,0.12);
@@ -557,79 +563,108 @@
         <div class="card-title">Create account</div>
         <div class="card-sub">Fill in your details to request access</div>
 
-        {% if error %}
-        <div class="error-box">⚠ {{ error }}</div>
+        {% if form.non_field_errors %}
+        <div class="error-box">{% for e in form.non_field_errors %}⚠ {{ e }}<br>{% endfor %}</div>
+        {% elif form.errors %}
+        <div class="error-box">⚠ Please fix the highlighted fields below.</div>
         {% endif %}
 
-        <form method="POST">
+        <form method="POST" novalidate>
             {% csrf_token %}
 
             <div class="section-title">Personal information</div>
             <div class="row">
                 <div class="form-group">
-                    <label class="form-label">First name</label>
-                    <input class="form-input" type="text" name="first_name" placeholder="Mohammed" required>
+                    <label class="form-label" for="id_first_name">First name</label>
+                    <input class="form-input{% if form.first_name.errors %} has-error{% endif %}" type="text" id="id_first_name" name="first_name"
+                           value="{{ form.first_name.value|default:'' }}" placeholder="Mohammed" maxlength="30" required autocomplete="given-name">
+                    {% for e in form.first_name.errors %}<div class="field-error">{{ e }}</div>{% endfor %}
                 </div>
                 <div class="form-group">
-                    <label class="form-label">Last name</label>
-                    <input class="form-input" type="text" name="last_name" placeholder="Rashid" required>
+                    <label class="form-label" for="id_last_name">Last name</label>
+                    <input class="form-input{% if form.last_name.errors %} has-error{% endif %}" type="text" id="id_last_name" name="last_name"
+                           value="{{ form.last_name.value|default:'' }}" placeholder="Rashid" maxlength="30" required autocomplete="family-name">
+                    {% for e in form.last_name.errors %}<div class="field-error">{{ e }}</div>{% endfor %}
                 </div>
             </div>
-            <div class="row">
-                <div class="form-group">
-                    <label class="form-label">Email address</label>
-                    <input class="form-input" type="email" name="email" placeholder="you@gmail.com" required>
+            <div class="form-group">
+                <label class="form-label" for="id_email">Email address</label>
+                <input class="form-input{% if form.email.errors %} has-error{% endif %}" type="email" id="id_email" name="email"
+                       value="{{ form.email.value|default:'' }}" placeholder="you@gmail.com" maxlength="150" required autocomplete="email">
+                {% for e in form.email.errors %}<div class="field-error">{{ e }}</div>{% endfor %}
+            </div>
+            <div class="form-group">
+                <label class="form-label" for="id_phone">Phone number</label>
+                <div class="phone-wrap">
+                    <select class="form-select{% if form.country_code.errors %} has-error{% endif %}" name="country_code" aria-label="Country code">
+                        {% for code, label in country_choices %}
+                        <option value="{{ code }}" {% if code == form.country_code.value|default:'+91' %}selected{% endif %}>{{ label }}</option>
+                        {% endfor %}
+                    </select>
+                    <input class="form-input{% if form.phone.errors %} has-error{% endif %}" type="tel" id="id_phone" name="phone"
+                           value="{{ form.phone.value|default:'' }}" placeholder="9876543210" inputmode="numeric" maxlength="15" required autocomplete="tel-national">
                 </div>
-                <div class="form-group">
-                    <label class="form-label">Phone number</label>
-                    <input class="form-input" type="tel" name="phone" placeholder="9876543210" required>
-                </div>
+                {% for e in form.phone.errors %}<div class="field-error">{{ e }}</div>{% endfor %}
+                {% for e in form.country_code.errors %}<div class="field-error">{{ e }}</div>{% endfor %}
             </div>
 
             <div class="section-title">Trading profile</div>
             <div class="row">
                 <div class="form-group">
-                    <label class="form-label">Trading experience</label>
-                    <select class="form-select" name="trading_experience" required>
+                    <label class="form-label" for="id_trading_experience">Trading experience</label>
+                    <select class="form-select{% if form.trading_experience.errors %} has-error{% endif %}" id="id_trading_experience" name="trading_experience" required>
                         <option value="">Select level</option>
-                        <option value="beginner">Beginner</option>
-                        <option value="intermediate">Intermediate</option>
-                        <option value="expert">Expert</option>
+                        {% for v, l in form.fields.trading_experience.choices %}
+                        <option value="{{ v }}" {% if form.trading_experience.value == v %}selected{% endif %}>{{ l }}</option>
+                        {% endfor %}
                     </select>
+                    {% for e in form.trading_experience.errors %}<div class="field-error">{{ e }}</div>{% endfor %}
                 </div>
                 <div class="form-group">
-                    <label class="form-label">Preferred trade type</label>
-                    <select class="form-select" name="preferred_trade_type" required>
+                    <label class="form-label" for="id_preferred_trade_type">Preferred trade type</label>
+                    <select class="form-select{% if form.preferred_trade_type.errors %} has-error{% endif %}" id="id_preferred_trade_type" name="preferred_trade_type" required>
                         <option value="">Select type</option>
-                        <option value="intraday">Intraday</option>
-                        <option value="swing">Swing</option>
-                        <option value="longterm">Long Term</option>
+                        {% for v, l in form.fields.preferred_trade_type.choices %}
+                        <option value="{{ v }}" {% if form.preferred_trade_type.value == v %}selected{% endif %}>{{ l }}</option>
+                        {% endfor %}
                     </select>
+                    {% for e in form.preferred_trade_type.errors %}<div class="field-error">{{ e }}</div>{% endfor %}
                 </div>
             </div>
             <div class="form-group">
-                <label class="form-label">Trading capital (₹)</label>
+                <label class="form-label" for="id_capital">Trading capital (₹)</label>
                 <div class="capital-wrap">
                     <span class="capital-symbol">₹</span>
-                    <input class="form-input" type="number" name="capital" placeholder="50000" min="0" required>
+                    <input class="form-input{% if form.capital.errors %} has-error{% endif %}" type="number" id="id_capital" name="capital"
+                           value="{{ form.capital.value|default:'' }}" placeholder="50000" min="0" step="any" required>
                 </div>
+                {% for e in form.capital.errors %}<div class="field-error">{{ e }}</div>{% endfor %}
             </div>
 
             <div class="section-title">Account credentials</div>
             <div class="form-group">
-                <label class="form-label">Username</label>
-                <input class="form-input" type="text" name="username" placeholder="Choose a username" required>
+                <label class="form-label" for="id_username">Username</label>
+                <input class="form-input{% if form.username.errors %} has-error{% endif %}" type="text" id="id_username" name="username"
+                       value="{{ form.username.value|default:'' }}" placeholder="e.g. rashid_trader" maxlength="20" required
+                       autocapitalize="none" autocomplete="username" spellcheck="false">
+                <div class="field-hint">Starts with a letter · small letters, numbers and _ only · 3–20 characters</div>
+                {% for e in form.username.errors %}<div class="field-error">{{ e }}</div>{% endfor %}
             </div>
             <div class="row">
                 <div class="form-group">
-                    <label class="form-label">Password</label>
-                    <input class="form-input" type="password" name="password" placeholder="Min 6 characters" required>
+                    <label class="form-label" for="id_password">Password</label>
+                    <input class="form-input{% if form.password.errors %} has-error{% endif %}" type="password" id="id_password" name="password"
+                           placeholder="Min 8 characters" required autocomplete="new-password">
+                    {% for e in form.password.errors %}<div class="field-error">{{ e }}</div>{% endfor %}
                 </div>
                 <div class="form-group">
-                    <label class="form-label">Confirm password</label>
-                    <input class="form-input" type="password" name="confirm_password" placeholder="Repeat password" required>
+                    <label class="form-label" for="id_confirm_password">Confirm password</label>
+                    <input class="form-input{% if form.confirm_password.errors %} has-error{% endif %}" type="password" id="id_confirm_password" name="confirm_password"
+                           placeholder="Repeat password" required autocomplete="new-password">
+                    {% for e in form.confirm_password.errors %}<div class="field-error">{{ e }}</div>{% endfor %}
                 </div>
             </div>
+            <div class="field-hint">Password: at least 8 characters, not too similar to your name or username, not all numbers.</div>
 
             <div class="note-box">
                 <span class="note-icon">ℹ</span>
@@ -695,7 +730,7 @@
             <div class="steps-list">
                 <div class="step-item">
                     <div class="step-num">1</div>
-                    <div class="step-text"><strong>Register</strong> and wait for admin approval</div>
+                    <div class="step-text"><strong>Register</strong> and sign in instantly</div>
                 </div>
                 <div class="step-item">
                     <div class="step-num">2</div>
@@ -747,6 +782,14 @@ async function fetchIndices() {
 
 fetchIndices();
 setInterval(fetchIndices, 60000);
+
+// Usernames are stored in small letters: convert as the user types
+const uname = document.getElementById('id_username');
+if (uname) uname.addEventListener('input', () => {
+    const pos = uname.selectionStart;
+    uname.value = uname.value.toLowerCase().replace(/\s/g, '');
+    uname.setSelectionRange(pos, pos);
+});
 </script>
 
 </body>

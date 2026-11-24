@@ -148,7 +148,22 @@ if not DEBUG:
     # Off by default: Railway already serves HTTPS, and redirecting can break its health checks.
     SECURE_SSL_REDIRECT = os.getenv('SECURE_SSL_REDIRECT', 'False').lower() in ('true', '1', 'yes')
 
+# ── LOGGING ───────────────────────────────────────────────────
+# Send warnings (CSRF failures, 4xx/5xx details) to stdout so they show in Railway logs.
+LOGGING = {
+    'version': 1,
+    'disable_existing_loggers': False,
+    'handlers': {'console': {'class': 'logging.StreamHandler'}},
+    'loggers': {
+        'django.request':  {'handlers': ['console'], 'level': 'WARNING', 'propagate': False},
+        'django.security': {'handlers': ['console'], 'level': 'WARNING', 'propagate': False},
+        'stocks':          {'handlers': ['console'], 'level': 'INFO',    'propagate': False},
+    },
+}
+
 # ── CSRF ──────────────────────────────────────────────────────
+# Stale forms redirect back with a friendly "page expired" message instead of a bare 403.
+CSRF_FAILURE_VIEW = 'stocks.views.csrf_failure'
 CSRF_TRUSTED_ORIGINS = [
     'https://*.railway.app',
     'https://*.up.railway.app',

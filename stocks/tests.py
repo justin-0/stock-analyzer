@@ -294,3 +294,139 @@ class ProductionSettingsTests(TestCase):
         r = self.load_settings()
         self.assertEqual(r.returncode, 0, r.stderr)
         self.assertTrue(json.loads(r.stdout)['debug'])
+
+
+VALID_SIGNUP = dict(
+    first_name='Rashid', last_name='Khan', email='Rashid@Gmail.com',
+    country_code='+91', phone='98765 43210',
+    trading_experience='beginner', preferred_trade_type='swing', capital='50000',
+    username='Rashid_Trader', password='Sw1ng-Trade!x', confirm_password='Sw1ng-Trade!x',
+)
+
+
+class RegisterValidationTests(TestCase):
+    def signup(self, **over):
+        return self.client.post('/register/', dict(VALID_SIGNUP, **over))
+
+    def test_valid_signup_saves_lowercase_and_e164(self):
+        r = self.signup()
+        self.assertRedirects(r, '/login/?registered=1', fetch_redirect_response=False)
+        u = User.objects.get()
+        self.assertEqual(u.username, 'rashid_trader')
+        self.assertEqual(u.email, 'rashid@gmail.com')
+        self.assertEqual(u.profile.phone, '+919876543210')
+
+    def test_username_rules(self):
+        for bad in ('1rashid', '_rashid', 'ra', 'rashid@123', 'rashid khan', 'r' * 21):
+            r = self.signup(username=bad)
+            self.assertEqual(r.status_code, 200, bad)
+            self.assertContains(r, 'Username must start with a letter')
+        self.assertEqual(User.objects.count(), 0)
+
+    def test_duplicate_username_email_phone_rejected(self):
+        self.signup()
+        r = self.signup(username='RASHID_TRADER', email='other@x.com', phone='9123456780')
+        self.assertContains(r, 'This username is already taken.')
+        r = self.signup(username='second', email='RASHID@gmail.com', phone='9123456780')
+        self.assertContains(r, 'This email is already registered.')
+        r = self.signup(username='third', email='third@x.com', phone='9876543210')
+        self.assertContains(r, 'This phone number is already registered.')
+        self.assertEqual(User.objects.count(), 1)
+
+    def test_legacy_phone_without_country_code_counts_as_duplicate(self):
+        old = make_user('legacy')
+        old.profile.phone = '9876543210'
+        old.profile.save()
+        r = self.signup()
+        self.assertContains(r, 'This phone number is already registered.')
+
+    def test_phone_rules_per_country(self):
+        self.assertContains(self.signup(phone='12345'), 'must be 10 digits for +91')
+        self.assertContains(self.signup(phone='5876543210'), 'start with 6, 7, 8 or 9')
+        self.assertContains(self.signup(phone='98765abc10'), 'digits only')
+        r = self.signup(country_code='+971', phone='501234567')
+        self.assertEqual(User.objects.get().profile.phone, '+971501234567')
+
+    def test_password_rules_and_errors_shown_with_values_kept(self):
+        r = self.signup(password='12345678', confirm_password='12345678')
+        self.assertContains(r, 'entirely numeric')
+        self.assertContains(r, 'value="Rashid"')          # entered values preserved
+        self.assertContains(r, 'value="Rashid@Gmail.com"')
+        self.assertNotContains(r, '12345678')            # password never echoed back
+        r = self.signup(confirm_password='different-1A')
+        self.assertContains(r, 'Passwords do not match.')
+
+    def test_page_shows_country_picker(self):
+        r = self.client.get('/register/')
+        self.assertContains(r, 'name="country_code"')
+        self.assertContains(r, 'India (+91)')
+
+
+class LoginAndCsrfFailureTests(TestCase):
+    def test_login_is_case_insensitive(self):
+        make_user('justin001', password='Str0ng-pass-123')
+        r = self.client.post('/login/', {'username': 'Justin001', 'password': 'Str0ng-pass-123'})
+        self.assertEqual(r.status_code, 302)
+
+    def test_stale_login_form_redirects_with_message_not_403(self):
+        c = Client(enforce_csrf_checks=True)
+        c.get('/login/')
+        r = c.post('/login/', {'username': 'x', 'password': 'y', 'csrfmiddlewaretoken': 'stale-token'})
+        self.assertRedirects(r, '/login/?expired=1', fetch_redirect_response=False)
+        self.assertContains(c.get('/login/?expired=1'), 'Your page had expired')
+
+    def test_api_csrf_failure_is_json(self):
+        c = Client(enforce_csrf_checks=True)
+        c.force_login(make_user('apiuser'))
+        r = c.post('/api/watchlist/', '{}', content_type='application/json')
+        self.assertEqual(r.status_code, 403)
+        self.assertIn('Session expired', r.json()['error'])
+
+    def test_login_page_not_cached(self):
+        r = self.client.get('/login/')
+        self.assertIn('no-cache', r['Cache-Control'])
+
+
+class ProfileUniquenessTests(TestCase):
+    def setUp(self):
+        self.a = make_user('alice', email='alice@x.com')
+        self.b = make_user('bob', email='bob@x.com')
+        self.b.profile.phone = '+919876543210'
+        self.b.profile.save()
+        self.client.force_login(self.a)
+
+    def post(self, **kw):
+        data = dict(first_name='Alice', email='alice@x.com', country_code='+91', phone='',
+                    trading_experience='beginner', preferred_trade_type='swing')
+        data.update(kw)
+        return self.client.post('/profile/', data)
+
+    def test_cannot_take_other_users_email_or_phone(self):
+        r = self.post(email='BOB@x.com')
+        self.assertIn('error=', r['Location'])
+        r = self.post(phone='9876543210')
+        self.assertIn('error=', r['Location'])
+        self.a.refresh_from_db()
+        self.assertEqual(self.a.email, 'alice@x.com')
+        self.assertEqual(self.a.profile.phone, '')
+
+    def test_valid_update_saves_e164(self):
+        r = self.post(phone='9123456780')
+        self.assertEqual(r['Location'], '/profile/?saved=1')
+        self.a.profile.refresh_from_db()
+        self.assertEqual(self.a.profile.phone, '+919123456780')
+
+
+class NormalizeMigrationTests(TestCase):
+    def test_normalize_existing_data(self):
+        import importlib
+        from django.apps import apps as django_apps
+        mig = importlib.import_module('stocks.migrations.0006_normalize_users_unique_phone')
+        u = make_user('Justin001', email='Justin001James@Gmail.com')
+        u.profile.phone = '7034956971'
+        u.profile.save()
+        mig.normalize(django_apps, None)
+        u.refresh_from_db()
+        self.assertEqual(u.username, 'justin001')
+        self.assertEqual(u.email, 'justin001james@gmail.com')
+        self.assertEqual(u.profile.phone, '+917034956971')

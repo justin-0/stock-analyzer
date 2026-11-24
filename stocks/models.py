@@ -27,6 +27,14 @@ class UserProfile(models.Model):
     upstox_token = models.TextField(blank=True, default='')
     upstox_token_updated = models.DateTimeField(null=True, blank=True)
 
+    class Meta:
+        constraints = [
+            # One account per phone number (blank phones are allowed for many users)
+            models.UniqueConstraint(
+                fields=['phone'], condition=~models.Q(phone=''), name='unique_nonempty_phone',
+            ),
+        ]
+
     def __str__(self):
         return f"{self.user.username} - Profile"
 
